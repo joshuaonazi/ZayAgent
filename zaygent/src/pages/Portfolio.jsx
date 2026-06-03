@@ -1,23 +1,34 @@
+import { useState } from "react";
 import { COLORS, STRATEGIES, PORTFOLIO_HOLDINGS } from "../constants/colors";
 import Badge from "../components/Badge";
 import DonutChart from "../components/DonutChart";
 import StatCard from "../components/StatCard";
+import PnLCardModal from "../components/PnLCardModal";
 
 export default function Portfolio() {
   const donutData = PORTFOLIO_HOLDINGS.map(h => ({ value: h.pct, color: h.color }));
+  const [selectedTrade, setSelectedTrade] = useState(null);
 
   return (
     <div>
+      {/* PnL Card Modal */}
+      {selectedTrade && (
+        <PnLCardModal
+          trade={selectedTrade}
+          onClose={() => setSelectedTrade(null)}
+        />
+      )}
+
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: COLORS.textPrimary, letterSpacing: 1 }}>Portfolio</h1>
         <p style={{ margin: 0, fontSize: 11, color: COLORS.textSecondary }}>Holdings, performance, and PnL breakdown</p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
-        <StatCard label="Total Value"       value="$11,120.00"  />
-        <StatCard label="Total PnL"         value="+$1,840.00"  color={COLORS.green} />
-        <StatCard label="PnL %"             value="+19.8%"      color={COLORS.green} />
-        <StatCard label="Active Positions"  value="6"           color={COLORS.teal}  />
+        <StatCard label="Total Value"      value="$11,120.00" />
+        <StatCard label="Total PnL"        value="+$1,840.00" color={COLORS.green} />
+        <StatCard label="PnL %"            value="+19.8%"     color={COLORS.green} />
+        <StatCard label="Active Positions" value="6"          color={COLORS.teal}  />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 12, marginBottom: 12 }}>
@@ -75,16 +86,27 @@ export default function Portfolio() {
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
           <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>STRATEGY PERFORMANCE</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 110px 110px 100px 80px", gap: 8, padding: "6px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
-          {["STRATEGY", "CHAIN", "ENTRY", "CURRENT", "PNL", "STATUS"].map(h => (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 110px 110px 100px 80px 80px", gap: 8, padding: "6px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
+          {["STRATEGY", "CHAIN", "ENTRY", "CURRENT", "PNL", "STATUS", "CARD"].map(h => (
             <span key={h} style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1 }}>{h}</span>
           ))}
         </div>
         {STRATEGIES.map((s, i) => {
           const entry   = (800 + i * 123).toFixed(2);
           const current = (parseFloat(entry) * (1 + parseFloat(s.pnl) / 100)).toFixed(2);
+          const tradeData = {
+            token:  s.pair.split("/")[0],
+            chain:  s.chain,
+            op:     s.active ? "Ongoing" : "Exited",
+            price:  entry,
+            amount: "1.000",
+            pnl:    s.pnl,
+            zec:    (Math.random() * 200 + 50).toFixed(2),
+            profit: parseFloat(s.pnl) > 0,
+            shielded: true,
+          };
           return (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 80px 110px 110px 100px 80px", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 80px 110px 110px 100px 80px 80px", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
               <div>
                 <div style={{ fontSize: 12, color: COLORS.textPrimary, fontWeight: 500 }}>{s.pair}</div>
                 <div style={{ fontSize: 9,  color: COLORS.textSecondary }}>{s.strategy}</div>
@@ -96,6 +118,11 @@ export default function Portfolio() {
               <span style={{ fontSize: 9, color: s.active ? COLORS.teal : COLORS.textMuted, fontWeight: 700 }}>
                 {s.active ? "ACTIVE" : "PAUSED"}
               </span>
+              <button
+                onClick={() => setSelectedTrade(tradeData)}
+                style={{ background: COLORS.tealFaint, color: COLORS.teal, border: `1px solid ${COLORS.teal}44`, borderRadius: 4, padding: "3px 8px", fontSize: 9, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>
+                ⬇ CARD
+              </button>
             </div>
           );
         })}

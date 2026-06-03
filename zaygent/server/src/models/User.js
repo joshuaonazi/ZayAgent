@@ -1,54 +1,75 @@
-const mongoose = require("mongoose");
+const { getDB } = require("../config/db");
 
-const userSchema = new mongoose.Schema(
-  {
-    // NEVER stores raw wallet address — only SHA-256 hash
-    hashedIdentity: {
-      type:     String,
-      required: true,
-      unique:   true,
-      index:    true,
-    },
+const UsersTable = "users";
 
-    // Agent configuration
-    agentConfig: {
-      isActive:      { type: Boolean, default: false },
-      riskLevel:     { type: String,  default: "MEDIUM", enum: ["LOW", "MEDIUM", "HIGH", "DEGEN"] },
-      maxAllocation: { type: Number,  default: 20 },
-      maxPositions:  { type: Number,  default: 5  },
-      globalTP:      { type: Number,  default: 300 },
-      globalSL:      { type: Number,  default: 25  },
-      scanInterval:  { type: Number,  default: 30  },
-      enabledChains: {
-        SOLANA: { type: Boolean, default: true  },
-        BSC:    { type: Boolean, default: true  },
-        ETH:    { type: Boolean, default: true  },
-        ZEC:    { type: Boolean, default: true  },
-      },
-      autoStable:     { type: Boolean, default: true  },
-      honeyCheck:     { type: Boolean, default: true  },
-      liqCheck:       { type: Boolean, default: true  },
-      dcaLadder:      { type: Boolean, default: false },
-      sentimentTrack: { type: Boolean, default: false },
-    },
-
-    // Premium tier
-    tier: {
-      type:    String,
-      default: "FREE",
-      enum:    ["FREE", "PRO"],
-    },
-
-    // Stats (aggregated — not linked to individual trades)
-    stats: {
-      totalTrades:  { type: Number, default: 0 },
-      totalWins:    { type: Number, default: 0 },
-      totalLosses:  { type: Number, default: 0 },
-    },
-
-    lastSeen: { type: Date, default: Date.now },
+const User = {
+  async findOne({ hashedIdentity }) {
+    const db = getDB();
+    const { data, error } = await db
+      .from(UsersTable)
+      .select("*")
+      .eq("hashed_identity", hashedIdentity)
+      .single();
+    if (error && error.code !== "PGRST116") throw error;
+    return data ? User._format(data) : null;
   },
-  { timestamps: true }
-);
 
-module.exports = mongoose.model("User", userSchema);
+  async create({ hashedIdentity }) {
+    const db = getDB();
+    const { data, error } = await db
+      .from(UsersTable)
+      .insert({
+        hashed_identity: hashedIdentity,
+        tier: "FREE",
+        agent_config: {
+          isActive: false, riskLevel: "MEDIUM", maxAllocation: 20,
+          maxPositions: 5, globalTP: 300, globalSL: 25, scanInterval: 30,
+          enabledChains: { SOLANA: true, BSC: true, ETH: true, ZEC: true },
+          autoStable: true, honeyCheck: true, liqCheck: true,
+          dcaLadder: false, sentimentTrack: false,
+        },
+        stats: { totalTrades: 0, totalWins: 0, totalLosses: 0 },
+        last_seen: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return User._format(data);
+  },
+
+  async updateLastSeen(hashedIdentity) {
+    const db = getDB();
+    const { error } = await db
+      .from(UsersTable)
+      .update({ last_seen: new Date().toISOString() })
+      .eq("hashed_identity", hashedIdentity);
+    if (error) throw error;
+  },
+
+  async updateConfig(hashedIdentity, config) {
+    const db = getDB();
+    const { data, error } = await db
+      .from(UsersTable)
+      .update({ agent_config: config })
+      .eq("hashed_identity", hashedIdentity)
+      .select()
+      .single();
+    if (error) throw error;
+    return User._format(data);
+  },
+
+  _format(row) {
+    return {
+      hashedIdentity: row.hashed_identity,
+      tier:           row.tier,
+      agentConfig:    row.agent_config,
+      stats:          row.stats,
+      lastSeen:       row.last_seen,
+      save: async function () {
+        await User.updateLastSeen(this.hashedIdentity);
+      },
+    };
+  },
+};
+
+module.exports = User;

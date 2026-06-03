@@ -3,7 +3,7 @@ const http       = require("http");
 const { Server } = require("socket.io");
 const cors       = require("cors");
 const env        = require("./config/env");
-const connectDB  = require("./config/db");
+const { connectDB } = require("./config/db");
 const { startPriceFeed }  = require("./services/priceFeeds");
 const { initWebSocket }   = require("./websocket/index");
 
@@ -18,10 +18,7 @@ const supportRoutes   = require("./routes/support");
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, {
-  cors: {
-    origin:  env.CLIENT_URL,
-    methods: ["GET", "POST"],
-  },
+  cors: { origin: env.CLIENT_URL, methods: ["GET", "POST"] },
 });
 
 // ── Middleware ───────────────────────────────────────────────────────────────
@@ -38,12 +35,7 @@ app.use("/api/support",   supportRoutes);
 
 // ── Health Check ─────────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "Zaygent server is running",
-    env:     env.NODE_ENV,
-    ts:      new Date(),
-  });
+  res.json({ success: true, message: "Zaygent server is running", env: env.NODE_ENV, ts: new Date() });
 });
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
@@ -64,10 +56,8 @@ async function startServer() {
   } catch (err) {
     console.warn("⚠️  Running without database — some features disabled");
   }
-
   initWebSocket(io);
   startPriceFeed(30000);
-
   server.listen(env.PORT, () => {
     console.log(`🚀 Zaygent server running on port ${env.PORT}`);
     console.log(`📡 WebSocket ready`);

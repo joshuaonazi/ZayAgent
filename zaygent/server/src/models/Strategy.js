@@ -1,32 +1,42 @@
-const mongoose = require("mongoose");
+const { getDB } = require("../config/db");
 
-const strategySchema = new mongoose.Schema(
-  {
-    userHash: { type: String, required: true, index: true },
+const StrategiesTable = "strategies";
 
-    pair:      { type: String, required: true },
-    strategy:  { type: String, required: true },
-    chain:     { type: String, required: true, enum: ["SOLANA", "BSC", "ETH", "ZEC"] },
-    isActive:  { type: Boolean, default: true },
-
-    // Bracket config
-    takeProfit:  { type: Number, default: 300 },
-    stopLoss:    { type: Number, default: 25  },
-    allocation:  { type: Number, default: 20  },
-
-    // Limit / DCA
-    limitEnabled: { type: Boolean, default: false },
-    limitPrice:   { type: Number,  default: null   },
-
-    // CA for sniper mode
-    contractAddress: { type: String, default: null },
-
-    // Performance
-    pnl:        { type: Number, default: 0 },
-    pnlPct:     { type: String, default: "0%" },
-    tradeCount: { type: Number, default: 0 },
+const Strategy = {
+  async find({ userHash, isActive } = {}) {
+    const db = getDB();
+    let query = db.from(StrategiesTable).select("*").eq("user_hash", userHash);
+    if (isActive !== undefined) query = query.eq("is_active", isActive);
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
   },
-  { timestamps: true }
-);
 
-module.exports = mongoose.model("Strategy", strategySchema);
+  async create(strategy) {
+    const db = getDB();
+    const { data, error } = await db
+      .from(StrategiesTable)
+      .insert({
+        user_hash:        strategy.userHash,
+        pair:             strategy.pair,
+        strategy:         strategy.strategy,
+        chain:            strategy.chain,
+        is_active:        strategy.isActive !== false,
+        take_profit:      strategy.takeProfit  || 300,
+        stop_loss:        strategy.stopLoss    || 25,
+        allocation:       strategy.allocation  || 20,
+        limit_enabled:    strategy.limitEnabled || false,
+        limit_price:      strategy.limitPrice  || null,
+        contract_address: strategy.contractAddress || null,
+        pnl:              0,
+        pnl_pct:          "0%",
+        trade_count:      0,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+};
+
+module.exports = Strategy;

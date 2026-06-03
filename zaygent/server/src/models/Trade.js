@@ -1,33 +1,54 @@
-const mongoose = require("mongoose");
+const { getDB } = require("../config/db");
 
-const tradeSchema = new mongoose.Schema(
-  {
-    // Linked to hashed identity — not raw wallet
-    userHash: { type: String, required: true, index: true },
+const TradesTable = "trades";
 
-    chain:     { type: String, required: true, enum: ["SOLANA", "BSC", "ETH", "ZEC"] },
-    token:     { type: String, required: true },
-    operation: { type: String, required: true, enum: ["Bought", "Sold", "TP Hit", "SL Exit", "DCA In", "Sniped"] },
-    amount:    { type: Number, required: true },
-    price:     { type: Number, required: true },
-
-    // ZEC funding details
-    zecAmount:  { type: Number, default: 0 },
-    isShielded: { type: Boolean, default: true },
-
-    // Performance
-    pnl:       { type: Number, default: 0 },
-    pnlPct:    { type: Number, default: 0 },
-    isProfit:  { type: Boolean, default: false },
-
-    // Execution metadata
-    txHash:    { type: String, default: null },
-    status:    { type: String, default: "COMPLETED", enum: ["PENDING", "COMPLETED", "FAILED", "REFUNDED"] },
-
-    // Strategy that triggered the trade (optional)
-    strategyId: { type: mongoose.Schema.Types.ObjectId, ref: "Strategy", default: null },
+const Trade = {
+  async find({ userHash, chain, operation } = {}) {
+    const db = getDB();
+    let query = db.from(TradesTable).select("*").eq("user_hash", userHash);
+    if (chain)     query = query.eq("chain", chain);
+    if (operation) query = query.eq("operation", operation);
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
   },
-  { timestamps: true }
-);
 
-module.exports = mongoose.model("Trade", tradeSchema);
+  async create(trade) {
+    const db = getDB();
+    const { data, error } = await db
+      .from(TradesTable)
+      .insert({
+        user_hash:   trade.userHash,
+        chain:       trade.chain,
+        token:       trade.token,
+        operation:   trade.operation,
+        amount:      trade.amount,
+        price:       trade.price,
+        zec_amount:  trade.zecAmount  || 0,
+        is_shielded: trade.isShielded !== false,
+        pnl:         trade.pnl        || 0,
+        pnl_pct:     trade.pnlPct     || 0,
+        is_profit:   trade.isProfit   || false,
+        tx_hash:     trade.txHash     || null,
+        status:      trade.status     || "COMPLETED",
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async filter({ userHash, chain, op, limit = 50, skip = 0 }) {
+    const db = getDB();
+    let query = db.from(TradesTable).select("*").eq("user_hash", userHash);
+    if (chain) query = query.eq("chain", chain);
+    if (op)    query = query.eq("operation", op);
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .range(skip, skip + limit - 1);
+    if (error) throw error;
+    return data || [];
+  },
+};
+
+module.exports = Trade;

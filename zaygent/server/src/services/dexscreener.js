@@ -9,7 +9,7 @@ const BASE_URL = env.DEXSCREENER_BASE_URL;
 const getTrendingTokens = async () => {
   try {
     const response = await axios.get(`${BASE_URL}/dex/tokens/trending`, {
-      timeout: 5000,
+      timeout: 10000,
     });
     return response.data?.pairs || [];
   } catch (error) {

@@ -2,11 +2,13 @@ import { useState } from "react";
 import { COLORS, chains, ops, HISTORY_SEED } from "../constants/colors";
 import Badge from "../components/Badge";
 import StatCard from "../components/StatCard";
+import PnLCardModal from "../components/PnLCardModal";
 
 export default function History() {
   const [filterOp,    setFilterOp]    = useState("ALL");
   const [filterChain, setFilterChain] = useState("ALL");
   const [search,      setSearch]      = useState("");
+  const [selectedTrade, setSelectedTrade] = useState(null);
 
   const filtered = HISTORY_SEED.filter(h =>
     (filterOp    === "ALL" || h.op    === filterOp)    &&
@@ -26,16 +28,24 @@ export default function History() {
 
   return (
     <div>
+      {/* PnL Card Modal */}
+      {selectedTrade && (
+        <PnLCardModal
+          trade={selectedTrade}
+          onClose={() => setSelectedTrade(null)}
+        />
+      )}
+
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: COLORS.textPrimary, letterSpacing: 1 }}>History</h1>
         <p style={{ margin: 0, fontSize: 11, color: COLORS.textSecondary }}>Full trade execution log — all chains, all operations</p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
-        <StatCard label="Total Trades"         value={HISTORY_SEED.length}                                    />
-        <StatCard label="Win Rate"             value={`${((wins / HISTORY_SEED.length) * 100).toFixed(0)}%`}  color={COLORS.green} />
-        <StatCard label="SL Exits"             value={losses}                                                  color={COLORS.red}   />
-        <StatCard label="Total ZEC Processed"  value={`$${totalZec}`}                                         color={COLORS.amber} />
+        <StatCard label="Total Trades"        value={HISTORY_SEED.length} />
+        <StatCard label="Win Rate"            value={`${((wins / HISTORY_SEED.length) * 100).toFixed(0)}%`} color={COLORS.green} />
+        <StatCard label="SL Exits"            value={losses}   color={COLORS.red}   />
+        <StatCard label="Total ZEC Processed" value={`$${totalZec}`} color={COLORS.amber} />
       </div>
 
       {/* Filters */}
@@ -69,15 +79,15 @@ export default function History() {
 
       {/* Table */}
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "80px 60px 80px 1fr 100px 80px 80px 70px", gap: 8, padding: "8px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
-          {["TIME", "CHAIN", "OP", "TOKEN / PRICE", "ZEC FUNDED", "PNL", "STATUS", "SHIELDED"].map(h => (
+        <div style={{ display: "grid", gridTemplateColumns: "80px 60px 80px 1fr 100px 80px 80px 70px 80px", gap: 8, padding: "8px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
+          {["TIME", "CHAIN", "OP", "TOKEN / PRICE", "ZEC FUNDED", "PNL", "STATUS", "SHIELDED", "CARD"].map(h => (
             <span key={h} style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1 }}>{h}</span>
           ))}
         </div>
         <div style={{ maxHeight: 420, overflow: "auto" }}>
           {filtered.map(item => (
             <div key={item.id} style={{
-              display: "grid", gridTemplateColumns: "80px 60px 80px 1fr 100px 80px 80px 70px",
+              display: "grid", gridTemplateColumns: "80px 60px 80px 1fr 100px 80px 80px 70px 80px",
               gap: 8, padding: "9px 14px", borderBottom: `1px solid ${COLORS.border}`,
               fontSize: 11, fontFamily: "monospace", alignItems: "center",
             }}>
@@ -101,6 +111,11 @@ export default function History() {
               <span style={{ fontSize: 9, color: item.shielded ? COLORS.teal : COLORS.textMuted }}>
                 {item.shielded ? "[✓ ZEC]" : "[PUBLIC]"}
               </span>
+              <button
+                onClick={() => setSelectedTrade(item)}
+                style={{ background: COLORS.tealFaint, color: COLORS.teal, border: `1px solid ${COLORS.teal}44`, borderRadius: 4, padding: "3px 8px", fontSize: 9, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>
+                ⬇ CARD
+              </button>
             </div>
           ))}
         </div>

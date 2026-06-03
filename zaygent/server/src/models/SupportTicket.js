@@ -1,40 +1,47 @@
-const mongoose = require("mongoose");
-const crypto   = require("crypto");
+const { getDB } = require("../config/db");
+const crypto    = require("crypto");
 
-const supportTicketSchema = new mongoose.Schema(
-  {
-    // Single-use ticket key shown to user
-    ticketKey: {
-      type:    String,
-      unique:  true,
-      default: () => `ST-TICKET-${Math.floor(Math.random()*900000+100000)}::SIG-${crypto.randomBytes(8).toString("hex").toUpperCase()}`,
-    },
+const TicketsTable = "support_tickets";
 
-    // Only the internal transaction ID is linked — not wallet
-    txId:     { type: String, default: null },
-    userHash: { type: String, required: true },
-
-    status: {
-      type:    String,
-      default: "OPEN",
-      enum:    ["OPEN", "INVESTIGATING", "RESOLVED", "EXPIRED"],
-    },
-
-    // Diagnostic data visible to admin ONLY while ticket is OPEN
-    diagnosticData: { type: Object, default: {} },
-
-    // Auto-expire after 48 hours
-    expiresAt: {
-      type:    Date,
-      default: () => new Date(Date.now() + 48 * 60 * 60 * 1000),
-    },
-
-    resolvedAt: { type: Date, default: null },
+const SupportTicket = {
+  async create({ ticketKey, userHash, txId, diagnosticData }) {
+    const db = getDB();
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await db
+      .from(TicketsTable)
+      .insert({
+        ticket_key:      ticketKey,
+        user_hash:       userHash,
+        tx_id:           txId || null,
+        status:          "OPEN",
+        diagnostic_data: diagnosticData || {},
+        expires_at:      expiresAt,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
-  { timestamps: true }
-);
 
-// Auto-expire tickets
-supportTicketSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+  async findOne({ ticketKey }) {
+    const db = getDB();
+    const { data, error } = await db
+      .from(TicketsTable)
+      .select("*")
+      .eq("ticket_key", ticketKey)
+      .single();
+    if (error && error.code !== "PGRST116") throw error;
+    return data || null;
+  },
 
-module.exports = mongoose.model("SupportTicket", supportTicketSchema);
+  async updateStatus(ticketKey, status, extra = {}) {
+    const db = getDB();
+    const { error } = await db
+      .from(TicketsTable)
+      .update({ status, ...extra })
+      .eq("ticket_key", ticketKey);
+    if (error) throw error;
+  },
+};
+
+module.exports = SupportTicket;
