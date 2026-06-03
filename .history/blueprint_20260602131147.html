@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Zaygent Architectural Specification Blueprint</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        @page { size: A4; margin: 18mm 14mm; background-color: #0f172a; }
+        body { margin: 0; padding: 0; font-family: sans-serif; color: #cbd5e1; background-color: #0f172a; font-size: 9.5pt; line-height: 1.5; }
+        .page-break-container { page-break-before: always; }
+        .header-container { border-bottom: 2px solid #3b82f6; padding-bottom: 12px; margin-bottom: 20px; }
+        .main-title { color: #f8fafc; font-size: 20pt; font-weight: 800; margin: 0; text-transform: uppercase; }
+        .subtitle { color: #3b82f6; font-size: 11pt; font-weight: 600; margin: 0; text-transform: uppercase; }
+        .meta-grid { display: table; width: 100%; margin-bottom: 24px; background: #1e293b; padding: 10px 14px; border-radius: 6px; border-left: 4px solid #10b981; }
+        .meta-col { display: table-cell; width: 25%; font-size: 9pt; }
+        .meta-label { color: #64748b; font-weight: bold; text-transform: uppercase; font-size: 7.5pt; }
+        .meta-value { color: #e2e8f0; font-weight: 600; }
+        .layout-table { display: table; width: 100%; table-layout: fixed; margin-bottom: 20px; }
+        .layout-row { display: table-row; }
+        .left-col { display: table-cell; width: 40%; vertical-align: top; padding-right: 14px; }
+        .right-col { display: table-cell; width: 60%; vertical-align: top; padding-left: 14px; border-left: 1px solid #334155; }
+        .section-title { font-size: 12pt; font-weight: 700; color: #f1f5f9; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #334155; text-transform: uppercase; }
+        .tree-container { background-color: #1e293b; border-radius: 6px; padding: 14px; font-family: monospace; font-size: 8.5pt; color: #38bdf8; line-height: 1.4; border: 1px solid #334155; }
+        .module-card { background: #1e293b; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; border-left: 4px solid #64748b; }
+        .module-card.client { border-left-color: #10b981; }
+        .module-card.server { border-left-color: #3b82f6; }
+        .module-card.agent { border-left-color: #a855f7; }
+        .module-card.integrations { border-left-color: #ec4899; }
+        .file-path { font-family: monospace; color: #e2e8f0; font-weight: bold; background: #0f172a; padding: 2px 6px; border-radius: 3px; display: inline-block; }
+        .file-desc { color: #94a3b8; display: block; margin-top: 2px; }
+        .flow-panel { background: #1e293b; border-radius: 6px; padding: 14px; border: 1px solid #334155; margin-top: 20px; }
+        .flow-step-container { display: table; width: 100%; text-align: center; }
+        .flow-step { display: table-cell; width: 20%; background: #0f172a; padding: 12px; border-radius: 6px; border: 1px solid #475569; font-size: 9pt; }
+        .flow-arrow { display: table-cell; width: 6%; color: #3b82f6; font-weight: bold; font-size: 16pt; vertical-align: middle; }
+        .phase-block { background: #1e293b; border-radius: 6px; padding: 18px; margin-bottom: 18px; border-left: 4px solid #3b82f6; }
+        .phase-title { font-size: 11pt; font-weight: bold; color: #f8fafc; margin-bottom: 10px; text-transform: uppercase; }
+        .math-block { text-align: center; margin: 16px 0; font-size: 12pt; background: #0f172a; padding: 14px; border-radius: 6px; border: 1px solid #334155; color: #38bdf8; font-family: serif; font-style: italic; font-weight: bold; }
+        .tech-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 9pt; }
+        .tech-table th { background-color: #0f172a; color: #f1f5f9; text-transform: uppercase; font-size: 8pt; padding: 10px; border: 1px solid #334155; text-align: left; }
+        .tech-table td { padding: 10px; border: 1px solid #334155; vertical-align: top; }
+        .tech-table tr:nth-child(even) { background-color: #172554; }
+    </style>
+</head>
+<body>
+
+    <div>
+        <div class="header-container">
+            <h1 class="main-title">Zaygent Architectural Blueprint</h1>
+            <p class="subtitle">System Layout & Repository Map Specification</p>
+        </div>
+        <div class="meta-grid">
+            <div class="meta-col"><div class="meta-label">System Type</div><div class="meta-value">DeFi Autonomous Agent</div></div>
+            <div class="meta-col"><div class="meta-label">Core Protocols</div><div class="meta-value">NEAR Intents & Zcash Shield</div></div>
+            <div class="meta-col"><div class="meta-label">Auth Layer</div><div class="meta-value">SHA-256 / Wallet Signature</div></div>
+            <div class="meta-col"><div class="meta-label">Build Horizon</div><div class="meta-value">3-Week Sprint Lifecycle</div></div>
+        </div>
+        <div class="layout-table">
+            <div class="layout-row">
+                <div class="left-col">
+                    <h2 class="section-title">Directory Inventory</h2>
+                    <div class="tree-container">
+                        <strong>zaygent/</strong><br>
+                        ├── client/ <span style="color:#10b981;">[W1 ✅]</span><br>
+                        │   ├── public/index.html<br>
+                        │   └── src/<br>
+                        │       ├── constants/colors.js<br>
+                        │       ├── components/[Badge, DonutChart, StatCard, ActivityRow].jsx<br>
+                        │       └── pages/[Dashboard, Markets, AgentConfig, Portfolio, PrivacyCenter, History].jsx<br>
+                        ├── server/ <span style="color:#3b82f6;">[W2]</span><br>
+                        │   └── src/<br>
+                        │       ├── config/[db, env].js<br>
+                        │       ├── middleware/[auth, privacy, rateLimit].js<br>
+                        │       ├── models/[User, Trade, Strategy, SupportTicket].js<br>
+                        │       ├── routes/[auth, agent, portfolio, markets, support].js<br>
+                        │       └── services/[dexscreener, priceFeeds, hashService, ticketService].js<br>
+                        ├── agent/ <span style="color:#a855f7;">[W3]</span><br>
+                        │   └── src/<br>
+                        │       ├── engines/[scalper, sniper].js<br>
+                        │       ├── evaluators/[bracketEvaluator, honeypotCheck, liquidityCheck].js<br>
+                        │       ├── executors/[swapExecutor, crossPayExecutor].js<br>
+                        │       └── scanners/[dexScanner, sentimentScanner].js<br>
+                        └── integrations/ <span style="color:#ec4899;">[W3]</span><br>
+                            ├── near/[intentsSDK, crossPay].js<br>
+                            └── zcash/shieldedPool.js
+                    </div>
+                </div>
+                <div class="right-col">
+                    <h2 class="section-title">Functional Module Mapping</h2>
+                    <div class="module-card client">
+                        <div class="module-header"><div class="module-name">📱 Client Tier (React Frontend)</div></div>
+                        <div class="file-grid">
+                            <div class="file-item"><span class="file-path">zaygent.jsx / App.jsx</span><span class="file-desc">Handles central viewport rendering, app configuration routing, and state tracking layout containers.</span></div>
+                            <div class="file-item"><span class="file-path">pages/*</span><span class="file-desc">High-density visual layouts including order metrics dashboards, strategy configurators, and private transaction vaults.</span></div>
+                        </div>
+                    </div>
+                    <div class="module-card server">
+                        <div class="module-header"><div class="module-name">⚙️ Server Tier (Express Gateway)</div></div>
+                        <div class="file-grid">
+                            <div class="file-item"><span class="file-path">middleware/*</span><span class="file-desc">Verifies incoming user cryptographic wallet signatures, applies query rate limits, and triggers identity hashes.</span></div>
+                            <div class="file-item"><span class="file-path">models/*</span><span class="file-desc">Enforces strict data schemas for user token identities, persistent trade actions, strategy matrices, and tickets.</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="flow-panel">
+            <div class="flow-step-container">
+                <div class="flow-step"><strong style="color: #10b981;">1. UI Node</strong><br>Wallet State Config</div>
+                <div class="flow-arrow">➔</div>
+                <div class="flow-step"><strong style="color: #3b82f6;">2. Express Gateway</strong><br>SHA-256 Isolation</div>
+                <div class="flow-arrow">➔</div>
+                <div class="flow-step"><strong style="color: #a855f7;">3. Risk Engine</strong><br>Triple-Gate Audit</div>
+                <div class="flow-arrow">➔</div>
+                <div class="flow-step"><strong style="color: #ec4899;">4. Settlement</strong><br>Intent Solver & ZC Pool</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-break-container">
+        <div class="header-container">
+            <h1 class="main-title">Cryptographic Execution Flow</h1>
+            <p class="subtitle">Phases 1 - 3: Request Ingestion, Anonymization & Security Gatekeeping</p>
+        </div>
+        <div class="phase-block" style="border-left-color: #10b981;">
+            <div class="phase-title">🔏 Phase 1: Client Edge Authentication & Strategy Initialization</div>
+            The session initialization traces directly to <span class="file-path">client/src/pages/AgentConfig.jsx</span>. Zaygent eliminates weak traditional patterns like basic tracking access tokens by enforcing strict cryptographic asymmetric authentication keys.
+            <div class="math-block">Payload = Sign(Private Key, Nonce || Timestamp || Strategy Parameters)</div>
+            This generated signature bundle packages configuration metrics securely inside the Authorization metadata layer, eliminating exposure risks.
+        </div>
+        <div class="phase-block" style="border-left-color: #3b82f6;">
+            <div class="phase-title">⚙️ Phase 2: Express Gateway & State Anonymization</div>
+            Inbound requests hit the node pipeline at <span class="file-path">server/src/index.js</span> where <span class="file-path">middleware/auth.js</span> strips and cross-verifies the user's public address properties. Control then passes to the tracking isolate layer (<span class="file-path">middleware/privacy.js</span>), applying a customized SHA-256 algorithm:
+            <div class="math-block">Identity Hash = SHA-256(Public Wallet Address || Server Salt)</div>
+            The true account ledger index is purged completely from active hardware memory allocations. Only the string output signature remains to track downstream events.
+        </div>
+        <div class="phase-block" style="border-left-color: #a855f7;">
+            <div class="phase-title">🤖 Phase 3: Autonomous Evaluation & Pre-Trade Gatekeeping</div>
+            Before allocation vectors target live decentralized execution pools, the asset must clear the <strong>Triple-Gate Security Evaluator Pipeline</strong>:
+            <table class="tech-table">
+                <thead><tr><th>Evaluator Block</th><th>Target Domain</th><th>Functional Mechanic</th><th>Failure State Condition</th></tr></thead>
+                <tbody>
+                    <tr><td>honeypotCheck.js</td><td>Contract Integrity</td><td>Simulates live buy/sell loops in a isolated local EVM state fork.</td><td>Halts threads if target contracts impose buy/sell taxes &gt; 10%.</td></tr>
+                    <tr><td>liquidityCheck.js</td><td>Capital Pool Depth</td><td>Extracts current locked depth and pool factory access parameters.</td><td>Aborts trades if liquidity metrics fall short or ownership isn't burned.</td></tr>
+                    <tr><td>bracketEvaluator.js</td><td>Volatility Buffer</td><td>Tracks real-time volatility index loops to trace Take-Profit/Stop-Loss bounds.</td><td>Forces asset contract liquidation the microsecond a price breaches setup ranges.</td></tr>
+                </tbody>
+            </table>
+        </div>
+         <div class="layout-table">
+            <div class="layout-row">
+                <div class="left-col" style="width: 35%;">
+                    <h2 class="section-title">Core Modules</h2>
+                    <div class="module-card agent"><span class="file-path">agent/src/executors/*</span><p style="font-size:8pt;color:#94a3b8;margin-top:4px;">Compiles high-level parameters into direct multi-chain execution commands.</p></div>
+                    <div class="module-card integrations"><span class="file-path">integrations/near/*</span><br><span class="file-path">integrations/zcash/*</span><p style="font-size:8pt;color:#94a3b8;margin-top:4px;">Maintains structural logic hooks for network validations and relayers.</p></div>
+                </div>
+                <div class="right-col" style="width: 65%;">
+                    <div class="phase-block" style="border-left-color: #ec4899; padding: 16px; margin: 0;">
+                        <div class="phase-title">🔗 Phase 4: Intent-Based Solvers & Zero-Knowledge Shielding</div>
+                        When evaluations clear, the agent invokes the core integration tier to finalize transactions across separate blockchains without revealing matching liquidity trails or leaking raw account signatures to public mempools.
+                        <h3 style="color:#f1f5f9; font-size:10pt; margin:14px 0 4px 0;">1. Cross-Chain Velocity via NEAR Intents SDK</h3>
+                        Bypassing standard bridging architecture vulnerabilities, <span class="file-path">intentsSDK.js</span> creates an off-chain asset requirement schema. The agent posts an immutable settlement condition (e.g., <em>"Deliver token Y on destination chain B, given validation of source token X deposit on chain A"</em>). Decentralized solvers race to fulfill the order parameters instantly out of private local balances via <span class="file-path">crossPay.js</span>.
+                        <h3 style="color:#f1f5f9; font-size:10pt; margin:14px 0 4px 0;">2. Origin Blinding via Zcash Shielded Pools</h3>
+                        To hide sequential trade correlations and prevent third-party telemetry tools from charting asset links, funds clear directly via <span class="file-path">shieldedPool.js</span>. Remaining protocol balances run into native shielded configurations using <strong>zk-SNARKs</strong>. This breaks visibility strings entirely between initial source allocations and downstream executions.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+       
+        <div style="background: #1e293b; border-radius: 6px; padding: 20px; margin-top: 45px; text-align: center; border: 1px dashed #475569;">
+            <span style="color: #3b82f6; font-weight: bold; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 1.5px;">End of Specification Blueprint</span>
+            <p style="color: #94a3b8; font-size: 9pt; margin: 6px 0 0 0;">This technical document constitutes the complete 3-week lifecycle architecture map for project Zaygent.</p>
+            <div style="margin-top: 10px; font-size: 7.5pt; color: #64748b; font-family: monospace;">DOC-REF: ZYG-ARCH-V3.0.2 • CEILING COMPLIANCE: 3 PAGES STRICT</div>
+        </div>
+    </div>
+</body>
+</html>
