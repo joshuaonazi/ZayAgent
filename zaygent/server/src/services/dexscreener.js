@@ -3,14 +3,32 @@ const env   = require("../config/env");
 
 const BASE_URL = env.DEXSCREENER_BASE_URL;
 
+// Axios instance with longer timeout
+const api = axios.create({
+  baseURL: BASE_URL,
+  timeout: 15000,
+  headers: { "Accept": "application/json" },
+});
+
+// Retry helper
+const withRetry = async (fn, retries = 3, delay = 2000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      console.warn(`⚠️  DEXscreener retry ${i + 1}/${retries}...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+};
+
 /**
  * Fetch trending tokens across all chains
  */
 const getTrendingTokens = async () => {
   try {
-    const response = await axios.get(`${BASE_URL}/dex/tokens/trending`, {
-      timeout: 10000,
-    });
+    const response = await withRetry(() => api.get("/dex/tokens/trending"));
     return response.data?.pairs || [];
   } catch (error) {
     console.error("DEXscreener trending error:", error.message);
@@ -23,9 +41,7 @@ const getTrendingTokens = async () => {
  */
 const getTokenByAddress = async (address) => {
   try {
-    const response = await axios.get(`${BASE_URL}/dex/tokens/${address}`, {
-      timeout: 5000,
-    });
+    const response = await withRetry(() => api.get(`/dex/tokens/${address}`));
     return response.data?.pairs?.[0] || null;
   } catch (error) {
     console.error("DEXscreener token lookup error:", error.message);
@@ -40,9 +56,7 @@ const getTokensByChain = async (chain) => {
   const chainMap = { SOLANA: "solana", BSC: "bsc", ETH: "ethereum" };
   const dexChain = chainMap[chain] || chain.toLowerCase();
   try {
-    const response = await axios.get(`${BASE_URL}/dex/pairs/${dexChain}`, {
-      timeout: 5000,
-    });
+    const response = await withRetry(() => api.get(`/dex/pairs/${dexChain}`));
     return response.data?.pairs || [];
   } catch (error) {
     console.error(`DEXscreener chain fetch error (${chain}):`, error.message);
@@ -55,9 +69,7 @@ const getTokensByChain = async (chain) => {
  */
 const searchTokens = async (query) => {
   try {
-    const response = await axios.get(`${BASE_URL}/dex/search?q=${encodeURIComponent(query)}`, {
-      timeout: 5000,
-    });
+    const response = await withRetry(() => api.get(`/dex/search?q=${encodeURIComponent(query)}`));
     return response.data?.pairs || [];
   } catch (error) {
     console.error("DEXscreener search error:", error.message);

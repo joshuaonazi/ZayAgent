@@ -80,7 +80,7 @@ export default function History() {
       {/* Table */}
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: "hidden" }}>
         <div style={{ display: "grid", gridTemplateColumns: "80px 60px 80px 1fr 100px 80px 80px 70px 80px", gap: 8, padding: "8px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
-          {["TIME", "CHAIN", "OP", "TOKEN / PRICE", "ZEC FUNDED", "PNL", "STATUS", "SHIELDED", "CARD"].map(h => (
+          {["TIME", "CHAIN", "OP", "TOKEN / PRICE", "ZEC FUNDED", "PNL", "STATUS", "SHIELDED", "PNL CARD"].map(h => (
             <span key={h} style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1 }}>{h}</span>
           ))}
         </div>
@@ -114,7 +114,7 @@ export default function History() {
               <button
                 onClick={() => setSelectedTrade(item)}
                 style={{ background: COLORS.tealFaint, color: COLORS.teal, border: `1px solid ${COLORS.teal}44`, borderRadius: 4, padding: "3px 8px", fontSize: 9, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>
-                ⬇ CARD
+                PnL Card ⬇ 
               </button>
             </div>
           ))}

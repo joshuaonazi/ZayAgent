@@ -46,22 +46,40 @@ export const PORTFOLIO_HOLDINGS = [
   { token: "BRETT", chain: "ETH",    amount: "1,820.0",  value: "$219.00",   pct: 2,  color: "#627eea" },
 ];
 
+const genMcap = (base) => {
+  const val = base * (0.8 + (base % 7) * 0.05);
+  if (val >= 1e9) return `${(val / 1e9).toFixed(1)}B`;
+  if (val >= 1e6) return `${(val / 1e6).toFixed(1)}M`;
+  return `${(val / 1e3).toFixed(0)}K`;
+};
+
 export const HISTORY_SEED = Array.from({ length: 30 }, (_, i) => {
   const chainKeys = ["SOLANA", "BSC", "ETH"];
   const tokenList = ["BONK", "WIF", "PEPE", "FLOKI", "DOGE", "SHIB", "MOG", "BRETT", "POPCAT"];
   const opList    = ["Bought", "Sold", "TP Hit", "SL Exit", "DCA In", "Sniped"];
-  const chain  = chainKeys[i % 3];
-  const token  = tokenList[i % tokenList.length];
-  const op     = opList[i % opList.length];
-  const isProfit = op === "TP Hit" || op === "Sold";
+  const chain     = chainKeys[i % 3];
+  const token     = tokenList[i % tokenList.length];
+  const op        = opList[i % opList.length];
+  const isProfit  = op === "TP Hit" || op === "Sold";
+  const isOngoing = op === "Bought" || op === "DCA In";
   const pnl = isProfit
     ? `+${(((i + 1) * 13.7) % 400 + 10).toFixed(1)}%`
     : op === "SL Exit"
     ? `-${(((i + 1) * 7.3) % 25 + 5).toFixed(1)}%`
+    : isOngoing ? null
     : `${(((i + 1) * 2.1) % 5 - 2.5).toFixed(1)}%`;
-  const ts  = `${String(i % 24).padStart(2,"0")}:${String((i * 3) % 60).padStart(2,"0")}:${String((i * 7) % 60).padStart(2,"0")}`;
-  const zec    = ((i + 1) * 17.3 % 300 + 50).toFixed(2);
-  const amount = ((i + 1) * 0.13 % 2 + 0.1).toFixed(3);
-  const price  = ((i + 1) * 23.1 % 200 + 10).toFixed(2);
-  return { id: i, chain, token, op, ts, zec, amount, price, pnl, shielded: i % 3 !== 0, profit: isProfit };
+  const ts         = `${String(i % 24).padStart(2,"0")}:${String((i * 3) % 60).padStart(2,"0")}:${String((i * 7) % 60).padStart(2,"0")}`;
+  const zec        = ((i + 1) * 17.3 % 300 + 50).toFixed(2);
+  const amount     = ((i + 1) * 0.13 % 2 + 0.1).toFixed(3);
+  const entryPrice = ((i + 1) * 23.1 % 200 + 10).toFixed(4);
+  const exitPrice  = isOngoing ? null : (parseFloat(entryPrice) * (isProfit ? (1 + ((i+1)*0.137 % 4)) : 0.75)).toFixed(4);
+  const baseMcap   = (i + 1) * 1e7;
+  const entryMcap  = genMcap(baseMcap);
+  const exitMcap   = isOngoing ? null : genMcap(isProfit ? baseMcap * 3 : baseMcap * 0.7);
+  return {
+    id: i, chain, token, op, ts, zec, amount,
+    price: entryPrice, entryPrice, exitPrice,
+    entryMcap, exitMcap,
+    pnl, shielded: i % 3 !== 0, profit: isProfit,
+  };
 });
