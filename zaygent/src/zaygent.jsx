@@ -9,6 +9,7 @@ import AgentConfig  from "./pages/AgentConfig";
 import Portfolio    from "./pages/Portfolio";
 import PrivacyCenter from "./pages/PrivacyCenter";
 import History      from "./pages/History";
+import Admin from "./pages/Admin";
 
 function randomActivity() {
   const chainKeys = ["SOLANA", "BSC", "BASE"];
@@ -31,6 +32,7 @@ const navItems = [
   { icon: "◫", label: "Portfolio"     },
   { icon: "◉", label: "Privacy Center"},
   { icon: "◷", label: "History"       },
+  { icon: "⚙", label: "Admin"         }
 ];
 
 export default function Zaygent() {
@@ -59,9 +61,11 @@ export default function Zaygent() {
       case "Portfolio":      return <Portfolio />;
       case "Privacy Center": return <PrivacyCenter />;
       case "History":        return <History />;
+      case "Admin":          return <Admin />;
       default:               return <Dashboard agentActive={agentActive} activities={activities} freshIds={freshIds} />;
     }
   };
+  
 
   return (
     <div style={{ background: COLORS.bg, height: "100vh", fontFamily: "'IBM Plex Mono', 'Courier New', monospace", display: "flex", flexDirection: "column", overflow: "hidden" }}>

@@ -15,28 +15,29 @@ const HONEYPOT_API = "https://api.honeypot.is/v2/IsHoneypot";
  * @returns {object} - { isSafe, isHoneypot, reason, taxes }
  */
 const checkHoneypot = async (address, chain) => {
-  // Solana — use heuristic check (no honeypot.is support)
+  // Solana — use heuristic check
   if (chain === "SOLANA") {
     return checkSolanaHeuristic(address);
   }
 
+  // ETH/BSC — honeypot.is API
   const chainId = chain === "ETH" ? 1 : chain === "BSC" ? 56 : null;
   if (!chainId) {
-    return { isSafe: false, reason: "Unsupported chain for honeypot check" };
+    return { isSafe: true, reason: "Unsupported chain — skipping honeypot check" };
   }
 
   try {
     const response = await axios.get(HONEYPOT_API, {
-      params: { address, chainID: chainId },
+      params:  { address, chainID: chainId },
       timeout: 8000,
     });
 
-    const data = response.data;
+    const data   = response.data;
     const result = data?.honeypotResult;
     const sim    = data?.simulationResult;
 
     if (!result) {
-      return { isSafe: false, reason: "No honeypot data returned" };
+      return { isSafe: true, warning: true, reason: "No honeypot data — proceeding with caution" };
     }
 
     if (result.isHoneypot) {
@@ -44,37 +45,29 @@ const checkHoneypot = async (address, chain) => {
         isSafe:     false,
         isHoneypot: true,
         reason:     result.honeypotReason || "Honeypot detected",
-        taxes:      null,
       };
     }
 
-    // Check for excessive taxes
     const buyTax  = sim?.buyTax  || 0;
     const sellTax = sim?.sellTax || 0;
 
     if (sellTax > 15) {
       return {
-        isSafe:     false,
-        isHoneypot: false,
-        reason:     `High sell tax: ${sellTax}%`,
-        taxes:      { buyTax, sellTax },
+        isSafe: false,
+        reason: `High sell tax: ${sellTax}%`,
+        taxes:  { buyTax, sellTax },
       };
     }
 
     return {
-      isSafe:     true,
-      isHoneypot: false,
-      reason:     "Token passed honeypot check",
-      taxes:      { buyTax, sellTax },
+      isSafe: true,
+      reason: "Token passed honeypot check",
+      taxes:  { buyTax, sellTax },
     };
   } catch (error) {
-    console.error("Honeypot check error:", error.message);
-    // Fail safe — if API is unreachable, warn but don't block
-    return {
-      isSafe:  false,
-      reason:  "Honeypot API unreachable — proceeding with caution",
-      warning: true,
-    };
+    // API down or token not found — warn but proceed
+    console.warn(`⚠️  Honeypot check skipped (${chain}): ${error.message}`);
+    return { isSafe: true, warning: true, reason: "Honeypot API unavailable — proceeding" };
   }
 };
 

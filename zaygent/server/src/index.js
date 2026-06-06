@@ -45,8 +45,14 @@ app.use((req, res) => {
 
 // ── Global Error Handler ─────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
-  console.error("Server error:", err.message);
-  res.status(500).json({ success: false, message: "Internal server error" });
+  const status  = err.status || err.statusCode || 500;
+  const message = err.message || "Internal server error";
+  console.error(`❌ [${status}] ${req.method} ${req.originalUrl} — ${message}`);
+  res.status(status).json({
+    success: false,
+    message,
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+  });
 });
 
 // ── Start ────────────────────────────────────────────────────────────────────
