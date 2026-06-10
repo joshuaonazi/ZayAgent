@@ -1,20 +1,17 @@
 /**
  * Zaygent Trading Agent — Main Entry Point
- * Orchestrates the scalper engine, sniper engine, and all evaluators.
  */
 
-require("dotenv").config();
+require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env") });
 const cron = require("node-cron");
-const axios = require("axios");
 
-const { runCycle, getOpenPositions } = require("./engines/scalper");
+const { runCycle, getOpenPositions }    = require("./engines/scalper");
 const { submitSnipe, monitorSnipes, getActiveSnipes } = require("./engines/sniper");
+const { startAgentAPI, broadcastEvent } = require("./api");
 
 // ── Config ───────────────────────────────────────────────────────────────────
-const SERVER_URL  = process.env.SERVER_URL  || "http://localhost:5000";
-const SCAN_INTERVAL_SECS = process.env.SCAN_INTERVAL || 30;
+const SCAN_INTERVAL_SECS = parseInt(process.env.SCAN_INTERVAL) || 30;
 
-// Default agent config (in production: fetched from server per user)
 const DEFAULT_CONFIG = {
   userHash:      "simulation_user",
   maxAllocation: 20,
@@ -30,22 +27,16 @@ const DEFAULT_CONFIG = {
 let isRunning   = false;
 let cycleCount  = 0;
 let agentActive = true;
+let agentConfig = { ...DEFAULT_CONFIG };
 
 // ── Event Handler ─────────────────────────────────────────────────────────────
 const handleEvent = async (event) => {
   const { type, data, ts } = event;
   console.log(`\n[${ts}] 📡 ${type}`);
 
-  // Forward events to server via HTTP
-  try {
-    await axios.post(`${SERVER_URL}/api/agent/event`, { type, data, ts }, {
-      timeout: 3000,
-    });
-  } catch (err) {
-    // Server might not have this endpoint yet — that's ok
-  }
+  // Broadcast to all SSE subscribers (frontend)
+  broadcastEvent({ type, data, ts });
 
-  // Log key events
   switch (type) {
     case "POSITION_OPENED":
       console.log(`  ✅ Opened: ${data.token} on ${data.chain} @ $${data.entryPrice}`);
@@ -62,9 +53,6 @@ const handleEvent = async (event) => {
     case "LIQUIDITY_BLOCKED":
       console.log(`  🚫 Low liquidity: ${data.token} — ${data.reason}`);
       break;
-    case "SCAN_EMPTY":
-      console.log(`  ℹ️  No opportunities found this cycle`);
-      break;
     default:
       break;
   }
@@ -73,7 +61,7 @@ const handleEvent = async (event) => {
 // ── Main Scalper Loop ─────────────────────────────────────────────────────────
 const runScalperCycle = async () => {
   if (!agentActive || isRunning) return;
-  isRunning  = true;
+  isRunning = true;
   cycleCount++;
 
   console.log(`\n${"═".repeat(50)}`);
@@ -82,28 +70,55 @@ const runScalperCycle = async () => {
   console.log(`   Active Snipes:    ${getActiveSnipes().length}`);
   console.log(`${"═".repeat(50)}`);
 
+  // Broadcast cycle start to frontend
+  broadcastEvent({
+    type: "CYCLE_START",
+    data: {
+      cycle:     cycleCount,
+      positions: getOpenPositions().length,
+      snipes:    getActiveSnipes().length,
+    },
+    ts: new Date().toISOString(),
+  });
+
   try {
-    await runCycle(DEFAULT_CONFIG, handleEvent);
+    await runCycle(agentConfig, handleEvent);
     await monitorSnipes(handleEvent);
   } catch (err) {
     console.error("❌ Cycle error:", err.message);
+    broadcastEvent({ type: "CYCLE_ERROR", data: { message: err.message }, ts: new Date().toISOString() });
   }
+
+  // Broadcast updated positions after cycle
+  broadcastEvent({
+    type: "POSITIONS_UPDATE",
+    data: {
+      positions: getOpenPositions(),
+      snipes:    getActiveSnipes(),
+    },
+    ts: new Date().toISOString(),
+  });
 
   isRunning = false;
 };
 
 // ── Scheduled Jobs ────────────────────────────────────────────────────────────
-
-// Main scalper loop — runs every 30 seconds
 cron.schedule(`*/${SCAN_INTERVAL_SECS} * * * * *`, runScalperCycle);
 
-// Position monitor — runs every 10 seconds
 cron.schedule("*/10 * * * * *", async () => {
   if (!agentActive) return;
   await monitorSnipes(handleEvent);
+  // Broadcast positions update every 10 seconds
+  broadcastEvent({
+    type: "POSITIONS_UPDATE",
+    data: {
+      positions: getOpenPositions(),
+      snipes:    getActiveSnipes(),
+    },
+    ts: new Date().toISOString(),
+  });
 });
 
-// Status report — every 5 minutes
 cron.schedule("*/5 * * * *", () => {
   console.log(`\n📊 STATUS REPORT`);
   console.log(`   Cycles run:       ${cycleCount}`);
@@ -112,11 +127,9 @@ cron.schedule("*/5 * * * *", () => {
   console.log(`   Agent status:     ${agentActive ? "ACTIVE" : "PAUSED"}`);
 });
 
-// ── Controls ──────────────────────────────────────────────────────────────────
-const pause  = () => { agentActive = false; console.log("⏸️  Agent paused");  };
-const resume = () => { agentActive = true;  console.log("▶️   Agent resumed"); };
+// ── Start ─────────────────────────────────────────────────────────────────────
+const { broadcastEvent: _ } = startAgentAPI();
 
-// ── Startup ───────────────────────────────────────────────────────────────────
 console.log(`
 ╔═══════════════════════════════════════╗
 ║   🤖 ZAYGENT TRADING AGENT v1.0       ║
@@ -126,7 +139,6 @@ console.log(`
 `);
 console.log("✅ Agent initialized — starting first cycle in 5 seconds...\n");
 
-// First cycle after 5 second delay
 setTimeout(runScalperCycle, 5000);
 
-module.exports = { pause, resume, submitSnipe, getOpenPositions, getActiveSnipes };
+module.exports = { agentConfig, getOpenPositions, getActiveSnipes };

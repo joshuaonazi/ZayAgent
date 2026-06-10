@@ -1,10 +1,15 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import useAgentEvents from "../hooks/useAgentEvents";
 import { COLORS, chains, STRATEGIES } from "../constants/colors";
 import Badge from "../components/Badge";
 import DonutChart from "../components/DonutChart";
 import ActivityRow from "../components/ActivityRow";
 
-export default function Dashboard({ agentActive, activities, freshIds }) {
+export default function Dashboard({ agentActive, activities: simActivities, freshIds: simFreshIds }) {
+  const { events: agentEvents, connected: agentConnected, cycleCount } = useAgentEvents(50);
+  // Merge agent events with simulated activities — agent events take priority
+  const activities = agentEvents.length > 0 ? [...agentEvents, ...simActivities].slice(0, 40) : simActivities;
+  const freshIds   = agentEvents.length > 0 ? new Set(agentEvents.slice(0, 3).map(e => e.id)) : simFreshIds;
   const [sniperCA,      setSniperCA]      = useState("");
   const [sniperNetwork, setSniperNetwork] = useState("SOLANA");
   const [allocation,    setAllocation]    = useState(50);
@@ -12,6 +17,8 @@ export default function Dashboard({ agentActive, activities, freshIds }) {
   const [stopLoss,      setStopLoss]      = useState(30);
   const [limitEnabled,  setLimitEnabled]  = useState(false);
   const [limitPrice,    setLimitPrice]    = useState("");
+  const [sniping,       setSniping]       = useState(false);
+  const [snipeResult,   setSnipeResult]   = useState(null);
   const [ticketKey]                       = useState(`ST-TICKET-${Math.floor(Math.random()*900000+100000)}::SIG-${Math.floor(Math.random()*900000+100000)}`);
   const feedRef = useRef(null);
 
@@ -183,9 +190,43 @@ export default function Dashboard({ agentActive, activities, freshIds }) {
               <label htmlFor="limit" style={{ fontSize: 10, color: COLORS.textSecondary, cursor: "pointer" }}>Enable Limit Entry / DCA</label>
             </div>
             {limitEnabled && <input value={limitPrice} onChange={e => setLimitPrice(e.target.value)} placeholder="Limit trigger price..." style={inputStyle} />}
-            <button style={{ background: sniperCA ? COLORS.teal : COLORS.border, color: sniperCA ? COLORS.bg : COLORS.textMuted, border: "none", borderRadius: 6, padding: "10px", fontSize: 12, fontFamily: "monospace", fontWeight: 700, letterSpacing: 2, cursor: sniperCA ? "pointer" : "default", transition: "all 0.2s" }}>
-              ⚡ EXECUTE SNIPE
+            <button
+              onClick={async () => {
+                if (!sniperCA) return;
+                setSniping(true);
+                setSnipeResult(null);
+                try {
+                  const res  = await fetch("http://localhost:5001/snipe", {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify({
+                      contractAddress: sniperCA,
+                      chain:           sniperNetwork,
+                      allocation:      allocation,
+                      takeProfit:      takeProfit,
+                      stopLoss:        stopLoss,
+                      limitEnabled:    limitEnabled,
+                      limitPrice:      limitPrice || null,
+                      userHash:        "simulation_user",
+                      zecBalance:      10,
+                    }),
+                  });
+                  const data = await res.json();
+                  setSnipeResult(data.success ? "✅ Snipe submitted!" : "❌ " + (data.result?.reason || "Failed"));
+                } catch (err) {
+                  setSnipeResult("❌ Agent offline — start agent first");
+                }
+                setSniping(false);
+              }}
+              disabled={!sniperCA || sniping}
+              style={{ background: sniperCA && !sniping ? COLORS.teal : COLORS.border, color: sniperCA && !sniping ? COLORS.bg : COLORS.textMuted, border: "none", borderRadius: 6, padding: "10px", fontSize: 12, fontFamily: "monospace", fontWeight: 700, letterSpacing: 2, cursor: sniperCA && !sniping ? "pointer" : "default", transition: "all 0.2s" }}>
+              {sniping ? "⏳ SUBMITTING..." : "⚡ EXECUTE SNIPE"}
             </button>
+            {snipeResult && (
+              <div style={{ background: snipeResult.startsWith("✅") ? COLORS.teal+"11" : COLORS.red+"11", border: `1px solid ${snipeResult.startsWith("✅") ? COLORS.teal : COLORS.red}44`, borderRadius: 6, padding: "8px 10px", fontSize: 10, color: snipeResult.startsWith("✅") ? COLORS.teal : COLORS.red, fontFamily: "monospace" }}>
+                {snipeResult}
+              </div>
+            )}
           </div>
         </div>
 
