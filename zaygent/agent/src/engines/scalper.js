@@ -10,7 +10,7 @@ const { checkHoneypot }    = require("../evaluators/honeypotCheck");
 const { checkLiquidity }   = require("../evaluators/liquidityCheck");
 const { evaluate, ACTIONS } = require("../evaluators/bracketEvaluator");
 const { executeBuy, executeSell, convertToStable } = require("../executors/swapExecutor");
-const { executeCrossPay }  = require("../executors/crossPayExecutor");
+const { executeCrossPay, refundCrossPay, returnProfitsToVault } = require("../executors/crossPayExecutor");
 
 // In-memory position store (in production: use database)
 const openPositions = new Map();
@@ -52,7 +52,7 @@ const runCycle = async (config, onEvent) => {
     const currentPrice = position.entryPrice * (1 + (Math.random() * 0.4 - 0.1));
     const result = evaluate(position, currentPrice);
 
-    if (result.action === ACTIONS.TAKE_PROFIT) {
+if (result.action === ACTIONS.TAKE_PROFIT) {
       const sellResult = await executeSell({
         token:        position.token,
         chain:        position.chain,
@@ -61,8 +61,19 @@ const runCycle = async (config, onEvent) => {
         reason:       "TP_HIT",
       });
 
-      if (sellResult.success && autoStable) {
-        await convertToStable({ amount: sellResult.usdcReceived, chain: position.chain, token: position.token });
+      if (sellResult.success) {
+        const vaultReturn = await returnProfitsToVault({
+          proceedsUSD:      sellResult.usdcReceived,
+          destinationChain: position.chain,
+          userHash:         position.userHash,
+          pnlPct:           result.pnlPct,
+        });
+        emit("PROFITS_RETURNED", {
+          token:       position.token,
+          zecReturned: vaultReturn.proceeds?.zecReturned,
+          proceedsUSD: sellResult.usdcReceived,
+          pnlPct:      result.pnlPct,
+        });
       }
 
       openPositions.delete(posId);
@@ -73,6 +84,7 @@ const runCycle = async (config, onEvent) => {
         pnlPct: result.pnlPct,
         ...sellResult,
       });
+
     } else if (result.action === ACTIONS.STOP_LOSS) {
       const sellResult = await executeSell({
         token:        position.token,
@@ -82,6 +94,16 @@ const runCycle = async (config, onEvent) => {
         reason:       "SL_EXIT",
       });
 
+      if (sellResult.success) {
+        // Even on loss — return remaining funds to ZEC vault
+        await returnProfitsToVault({
+          proceedsUSD:      sellResult.usdcReceived,
+          destinationChain: position.chain,
+          userHash:         position.userHash,
+          pnlPct:           result.pnlPct,
+        });
+      }
+
       openPositions.delete(posId);
       emit("POSITION_CLOSED", {
         token:  position.token,
@@ -90,6 +112,7 @@ const runCycle = async (config, onEvent) => {
         pnlPct: result.pnlPct,
         ...sellResult,
       });
+
     } else {
       emit("POSITION_UPDATE", {
         token:  position.token,
@@ -158,8 +181,20 @@ const runCycle = async (config, onEvent) => {
     price:  candidate.price,
   });
 
-  if (!buyResult.success) {
-    emit("BUY_FAILED", { token: candidate.name, reason: buyResult.reason });
+if (!buyResult.success) {
+    // Buy failed AFTER CrossPay already delivered funds — trigger refund
+    console.log(`↩️  Buy failed — initiating CrossPay refund for ${candidate.name}`);
+    const refund = await refundCrossPay({
+      netUSD:           crossPay.output.netUSD,
+      destinationChain: candidate.chain,
+      userHash,
+      reason:           `Buy execution failed — ${buyResult.reason}`,
+    });
+    emit("BUY_FAILED_REFUNDED", {
+      token:   candidate.name,
+      reason:  buyResult.reason,
+      refund,
+    });
     return;
   }
 
