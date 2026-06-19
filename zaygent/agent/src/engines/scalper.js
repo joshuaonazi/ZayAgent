@@ -3,7 +3,7 @@
  * Autonomous engine that scans, validates, enters, and exits positions.
  * Runs on a configurable interval loop.
  */
-
+const { getCurrentPrice } = require("../scanners/priceTracker");
 const { runScan }          = require("../scanners/dexScanner");
 const { getSentiment, combinedScore } = require("../scanners/sentimentScanner");
 const { checkHoneypot }    = require("../evaluators/honeypotCheck");
@@ -49,8 +49,9 @@ const runCycle = async (config, onEvent) => {
 
   // Step 2 — Evaluate open positions
   for (const [posId, position] of openPositions.entries()) {
-    const currentPrice = position.entryPrice * (1 + (Math.random() * 0.4 - 0.1));
-    const result = evaluate(position, currentPrice);
+// Simulate realistic price movement — gradual drift upward with volatility
+const currentPrice = await getCurrentPrice(position);
+const result = evaluate(position, currentPrice);
 
 if (result.action === ACTIONS.TAKE_PROFIT) {
       const sellResult = await executeSell({
@@ -116,6 +117,7 @@ if (result.action === ACTIONS.TAKE_PROFIT) {
     } else {
       emit("POSITION_UPDATE", {
         token:  position.token,
+        chain:  position.chain,
         action: result.action,
         pnlPct: result.pnlPct,
         reason: result.reason,

@@ -1,3 +1,4 @@
+import useAgentStats from "../hooks/useAgentStats";
 import { useState, useRef, useEffect } from "react";
 import useAgentEvents from "../hooks/useAgentEvents";
 import { COLORS, chains, STRATEGIES } from "../constants/colors";
@@ -6,10 +7,14 @@ import DonutChart from "../components/DonutChart";
 import ActivityRow from "../components/ActivityRow";
 
 export default function Dashboard({ agentActive, activities: simActivities, freshIds: simFreshIds }) {
+  const { cycleCount, openPositions, activeSnipes, tpHits, slExits, zecReturned, refunds, fearGreed, lastCycle, agentOnline, lastCycleText } = useAgentStats();
   const { events: agentEvents, connected: agentConnected } = useAgentEvents(50);
   const activities = agentEvents.length > 0 ? [...agentEvents, ...simActivities].slice(0, 40) : simActivities;
   const freshIds   = agentEvents.length > 0 ? new Set(agentEvents.slice(0, 3).map(e => e.id)) : simFreshIds;
 
+  const [tokenInfo,          setTokenInfo]          = useState(null);
+  const [tokenLookupLoading, setTokenLookupLoading] = useState(false);
+  const [tokenLookupError,   setTokenLookupError]   = useState(null);
   const [sniperCA,      setSniperCA]      = useState("");
   const [sniperNetwork, setSniperNetwork] = useState("SOLANA");
   const [allocation,    setAllocation]    = useState(50);
@@ -112,8 +117,8 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
               <span style={{ fontSize: 9, color: COLORS.textMuted }}>{agentConnected ? "AGENT" : "SIM"}</span>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "72px 56px 72px 1fr 80px 72px", gap: 8, padding: "6px 12px", borderBottom: `1px solid ${COLORS.border}` }}>
-            {["TIME", "CHAIN", "OP", "DETAILS", "FUNDED", "STATUS"].map(h => (
+          <div style={{ display: "grid", gridTemplateColumns: "90px 56px 70px 1fr 80px 72px", gap: 8, padding: "6px 12px", borderBottom: `1px solid ${COLORS.border}` }}>
+            {["DATE/TIME", "CHAIN", "OP", "DETAILS", "FUNDED", "STATUS"].map(h => (
               <span key={h} style={{ fontSize: 8, color: COLORS.textMuted, letterSpacing: 1 }}>{h}</span>
             ))}
           </div>
@@ -122,28 +127,50 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
           </div>
         </div>
 
-        {/* Privacy Panel — hidden on mobile */}
+        {/* Agent Stats Panel — hidden on mobile */}
         {!isMobile && (
           <div style={cardStyle}>
-            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
-              <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>PRIVACY PANEL</span>
+            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>🤖 AGENT STATUS</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: agentOnline ? COLORS.teal : COLORS.red, animation: agentOnline ? "pulse 1.5s infinite" : "none" }} />
+                <span style={{ fontSize: 9, color: agentOnline ? COLORS.teal : COLORS.red }}>{agentOnline ? "LIVE" : "OFFLINE"}</span>
+              </div>
             </div>
-            <div style={{ padding: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: COLORS.textSecondary }}>Privacy Shield</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.teal }}>MAX</span>
-              </div>
-              <div style={{ height: 6, background: COLORS.border, borderRadius: 3, marginBottom: 14, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: "100%", background: `linear-gradient(90deg, ${COLORS.tealDim}, ${COLORS.teal})`, borderRadius: 3 }} />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {[{ label: "Portfolio Summary", sub: "Non-ZEC assets" }, { label: "Gas Station", sub: "BSC/SOL/ETH" }].map(item => (
-                  <div key={item.label} style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "8px 10px" }}>
-                    <div style={{ fontSize: 10, color: COLORS.textPrimary, marginBottom: 2 }}>{item.label}</div>
-                    <div style={{ fontSize: 9, color: COLORS.textMuted }}>{item.sub}</div>
+            <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                { label: "Cycles Run",      value: cycleCount,                                    color: COLORS.textPrimary   },
+                { label: "Open Positions",  value: openPositions,                                 color: COLORS.teal          },
+                { label: "Active Snipes",   value: activeSnipes,                                  color: COLORS.blue          },
+                { label: "TP Hits",         value: tpHits,                                        color: COLORS.green         },
+                { label: "SL Exits",        value: slExits,                                       color: COLORS.red           },
+                { label: "ZEC Returned",    value: `${zecReturned.toFixed(4)} ZEC`,               color: COLORS.amber         },
+                { label: "Refunds",         value: refunds,                                       color: COLORS.textSecondary },
+                { label: "Last Cycle",      value: lastCycleText(lastCycle),                      color: COLORS.textMuted     },
+              ].map(item => (
+                <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                  <span style={{ fontSize: 10, color: COLORS.textMuted }}>{item.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: item.color, fontFamily: "monospace" }}>{item.value}</span>
+                </div>
+              ))}
+
+              {/* Fear & Greed */}
+              {fearGreed && (
+                <div style={{ marginTop: 4, background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 4 }}>FEAR & GREED INDEX</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: fearGreed.score <= 25 ? COLORS.red : fearGreed.score <= 45 ? COLORS.amber : fearGreed.score <= 55 ? COLORS.textPrimary : fearGreed.score <= 75 ? COLORS.green : COLORS.teal }}>
+                      {fearGreed.score}
+                    </span>
+                    <span style={{ fontSize: 9, color: COLORS.textSecondary, textAlign: "right", lineHeight: 1.4 }}>
+                      {fearGreed.label}
+                    </span>
                   </div>
-                ))}
-              </div>
+                  <div style={{ height: 4, background: COLORS.border, borderRadius: 2, marginTop: 6, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${fearGreed.score}%`, background: fearGreed.score <= 25 ? COLORS.red : fearGreed.score <= 45 ? COLORS.amber : fearGreed.score <= 55 ? COLORS.blue : fearGreed.score <= 75 ? COLORS.green : COLORS.teal, borderRadius: 2, transition: "width 0.5s" }} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -190,7 +217,112 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
             <div>
               <label style={{ fontSize: 9, color: COLORS.textSecondary, letterSpacing: 1, display: "block", marginBottom: 4 }}>CONTRACT ADDRESS (CA)</label>
-              <input value={sniperCA} onChange={e => setSniperCA(e.target.value)} placeholder="0x... or token address" style={inputStyle} />
+              <input
+                value={sniperCA}
+                onChange={async (e) => {
+                const val = e.target.value;
+                setSniperCA(val);
+                setTokenInfo(null);
+                setTokenLookupError(null);
+
+                // Auto lookup when address is long enough
+                if (val.length < 32) return;
+                setTokenLookupLoading(true);
+                try {
+                  const res  = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${val}`);
+                  const data = await res.json();
+                  const pair = data?.pairs?.[0];
+                  if (pair) {
+                    setTokenInfo({
+                      name:      pair.baseToken?.name   || "Unknown",
+                      symbol:    pair.baseToken?.symbol || "???",
+                      price:     parseFloat(pair.priceUsd || 0),
+                      chain:     pair.chainId?.toUpperCase() === "ETHEREUM" ? "ETH" : pair.chainId?.toUpperCase(),
+                      liquidity: pair.liquidity?.usd  || 0,
+                      change24h: pair.priceChange?.h24 || 0,
+                      dex:       pair.dexId || "unknown",
+                    });
+                    const chainMap = { solana: "SOLANA", bsc: "BSC", ethereum: "ETH" };
+                    if (pair.chainId) setSniperNetwork(chainMap[pair.chainId] || "SOLANA");
+                  } else {
+                    setTokenLookupError("Token not found on DEXscreener");
+                  }
+                } catch (err) {
+                  setTokenLookupError("Lookup failed — check the address");
+                }
+                setTokenLookupLoading(false);
+              }}
+                onBlur={async () => {
+                  if (!sniperCA || sniperCA.length < 10) return;
+                  setTokenLookupLoading(true);
+                  setTokenInfo(null);
+                  setTokenLookupError(null);
+                  try {
+                    const res  = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${sniperCA}`);
+                    const data = await res.json();
+                    const pair = data?.pairs?.[0];
+                    if (pair) {
+                      setTokenInfo({
+                        name:      pair.baseToken?.name    || "Unknown",
+                        symbol:    pair.baseToken?.symbol  || "???",
+                        price:     parseFloat(pair.priceUsd || 0),
+                        chain:     pair.chainId?.toUpperCase() === "ETHEREUM" ? "ETH" : pair.chainId?.toUpperCase(),
+                        liquidity: pair.liquidity?.usd || 0,
+                        change24h: pair.priceChange?.h24  || 0,
+                        dex:       pair.dexId || "unknown",
+                      });
+                      // Auto set network to match token chain
+                      if (pair.chainId) {
+                        const chainMap = { solana: "SOLANA", bsc: "BSC", ethereum: "ETH" };
+                        setSniperNetwork(chainMap[pair.chainId] || "SOLANA");
+                      }
+                    } else {
+                      setTokenLookupError("Token not found on DEXscreener");
+                    }
+                  } catch (err) {
+                    setTokenLookupError("Lookup failed — check the address");
+                  }
+                  setTokenLookupLoading(false);
+                }}
+                placeholder="0x... or token address"
+                style={inputStyle}
+              />
+
+              {/* Token lookup result */}
+              {tokenLookupLoading && (
+                <div style={{ fontSize: 10, color: COLORS.textMuted, padding: "6px 0" }}>
+                  🔍 Looking up token...
+                </div>
+              )}
+              {tokenLookupError && (
+                <div style={{ fontSize: 10, color: COLORS.red, padding: "6px 0" }}>
+                  ❌ {tokenLookupError}
+                </div>
+              )}
+              {tokenInfo && (
+                <div style={{ background: COLORS.bg, border: `1px solid ${COLORS.teal}44`, borderRadius: 6, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.textPrimary }}>{tokenInfo.symbol}</span>
+                      <span style={{ fontSize: 10, color: COLORS.textMuted, marginLeft: 6 }}>{tokenInfo.name}</span>
+                    </div>
+                    <span style={{ fontSize: 9, color: COLORS.teal, background: COLORS.tealFaint, padding: "2px 6px", borderRadius: 3 }}>{tokenInfo.chain}</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                    {[
+                      { label: "PRICE",     value: tokenInfo.price < 0.01 ? `$${tokenInfo.price.toFixed(6)}` : `$${tokenInfo.price.toFixed(4)}` },
+                      { label: "24H%",      value: `${tokenInfo.change24h >= 0 ? "+" : ""}${tokenInfo.change24h.toFixed(2)}%`, color: tokenInfo.change24h >= 0 ? COLORS.green : COLORS.red },
+                      { label: "LIQUIDITY", value: tokenInfo.liquidity >= 1e6 ? `$${(tokenInfo.liquidity/1e6).toFixed(1)}M` : `$${(tokenInfo.liquidity/1e3).toFixed(0)}K` },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: COLORS.bgCard, borderRadius: 4, padding: "6px 8px" }}>
+                        <div style={{ fontSize: 8, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 2 }}>{s.label}</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: s.color || COLORS.textPrimary }}>{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 9, color: COLORS.textMuted }}>via {tokenInfo.dex} · DEXscreener</div>
+                </div>
+              )}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <div>

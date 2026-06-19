@@ -23,13 +23,14 @@ const GAS_COSTS = {
 /**
  * Execute a simulated buy swap
  */
+
 const executeBuy = async ({ token, chain, amount, price, slippageTolerance = 1 }) => {
   console.log(`🔄 [SIM] Executing BUY: ${amount} ${token} @ $${price} on ${chain}`);
 
   // Simulate network delay
   await new Promise(r => setTimeout(r, Math.random() * 500 + 200));
 
-  const slip   = SLIPPAGE[chain] || SLIPPAGE.ETH;
+  const slip    = SLIPPAGE[chain] || SLIPPAGE.ETH;
   const slipPct = slip.min + Math.random() * (slip.max - slip.min);
   const gasCost = GAS_COSTS[chain] || 0.5;
 
@@ -41,7 +42,7 @@ const executeBuy = async ({ token, chain, amount, price, slippageTolerance = 1 }
     };
   }
 
-  const executedPrice = price * (1 + slipPct / 100);
+  const executedPrice  = price * (1 + slipPct / 100);
   const tokensReceived = amount / executedPrice;
 
   return {
