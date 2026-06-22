@@ -35,7 +35,7 @@ const navItems = [
 export default function Zaygent() {
   const [activeNav,   setActiveNav]   = useState("Dashboard");
   const [agentActive, setAgentActive] = useState(true);
-  const [activities,  setActivities]  = useState(() => Array.from({ length: 12 }, () => randomActivity()));
+  const [activities,  setActivities]  = useState([]);
   const [freshIds,    setFreshIds]    = useState(new Set());
   const [totalVolume]                 = useState((Math.random() * 9 + 1).toFixed(2));
   const [activeAgents]                = useState(Math.floor(Math.random() * 800 + 200));

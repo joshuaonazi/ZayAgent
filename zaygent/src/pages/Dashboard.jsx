@@ -9,8 +9,12 @@ import ActivityRow from "../components/ActivityRow";
 export default function Dashboard({ agentActive, activities: simActivities, freshIds: simFreshIds }) {
   const { cycleCount, openPositions, activeSnipes, tpHits, slExits, zecReturned, refunds, fearGreed, lastCycle, agentOnline, lastCycleText } = useAgentStats();
   const { events: agentEvents, connected: agentConnected } = useAgentEvents(50);
-  const activities = agentEvents.length > 0 ? [...agentEvents, ...simActivities].slice(0, 40) : simActivities;
-  const freshIds   = agentEvents.length > 0 ? new Set(agentEvents.slice(0, 3).map(e => e.id)) : simFreshIds;
+  const activities = agentEvents.length > 0 ? agentEvents : [];
+  const freshIds   = new Set(agentEvents.slice(0, 3).map(e => e.id));
+  const [crossPayChain,   setCrossPayChain]   = useState("ETH");
+  const [crossPayZec,     setCrossPayZec]     = useState("2");
+  const [crossPayLoading, setCrossPayLoading] = useState(false);
+  const [crossPayResult,  setCrossPayResult]  = useState(null);
 
   const [tokenInfo,          setTokenInfo]          = useState(null);
   const [tokenLookupLoading, setTokenLookupLoading] = useState(false);
@@ -240,6 +244,7 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
                       chain:     pair.chainId?.toUpperCase() === "ETHEREUM" ? "ETH" : pair.chainId?.toUpperCase(),
                       liquidity: pair.liquidity?.usd  || 0,
                       change24h: pair.priceChange?.h24 || 0,
+                      mcap:      pair.fdv || 0,
                       dex:       pair.dexId || "unknown",
                     });
                     const chainMap = { solana: "SOLANA", bsc: "BSC", ethereum: "ETH" };
@@ -269,6 +274,7 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
                         chain:     pair.chainId?.toUpperCase() === "ETHEREUM" ? "ETH" : pair.chainId?.toUpperCase(),
                         liquidity: pair.liquidity?.usd || 0,
                         change24h: pair.priceChange?.h24  || 0,
+                        mcap:      pair.fdv || 0,
                         dex:       pair.dexId || "unknown",
                       });
                       // Auto set network to match token chain
@@ -311,8 +317,8 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
                     {[
                       { label: "PRICE",     value: tokenInfo.price < 0.01 ? `$${tokenInfo.price.toFixed(6)}` : `$${tokenInfo.price.toFixed(4)}` },
-                      { label: "24H%",      value: `${tokenInfo.change24h >= 0 ? "+" : ""}${tokenInfo.change24h.toFixed(2)}%`, color: tokenInfo.change24h >= 0 ? COLORS.green : COLORS.red },
-                      { label: "LIQUIDITY", value: tokenInfo.liquidity >= 1e6 ? `$${(tokenInfo.liquidity/1e6).toFixed(1)}M` : `$${(tokenInfo.liquidity/1e3).toFixed(0)}K` },
+                      { label: "MCAP",      value: tokenInfo.mcap >= 1e6 ? `$${(tokenInfo.mcap/1e6).toFixed(1)}M` : `$${(tokenInfo.mcap/1e3).toFixed(0)}K` },
+                      { label: "LIQUIDITY", value: tokenInfo.liquidity >= 1e6 ? `$${(tokenInfo.liquidity/1e6).toFixed(1)}M` : `$${(tokenInfo.liquidity/1e3).toFixed(0)}K` }
                     ].map(s => (
                       <div key={s.label} style={{ background: COLORS.bgCard, borderRadius: 4, padding: "6px 8px" }}>
                         <div style={{ fontSize: 8, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 2 }}>{s.label}</div>
@@ -365,30 +371,56 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
         </div>
 
         {/* CrossPay Funding */}
-        <div style={cardStyle}>
-          <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
-            <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>AGENT FUNDING (CROSSPAY)</span>
-          </div>
-          <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
             <div>
               <label style={{ fontSize: 9, color: COLORS.textSecondary, letterSpacing: 1, display: "block", marginBottom: 4 }}>DESTINATION CHAIN</label>
-              <select style={{ ...inputStyle, appearance: "none" }}><option>ETH</option><option>Solana</option><option>BSC</option></select>
+              <select value={crossPayChain} onChange={e => setCrossPayChain(e.target.value)} style={{ ...inputStyle, appearance: "none" }}>
+                <option>ETH</option>
+                <option>SOLANA</option>
+                <option>BSC</option>
+              </select>
             </div>
             <div>
-              <label style={{ fontSize: 9, color: COLORS.textSecondary, letterSpacing: 1, display: "block", marginBottom: 4 }}>AMOUNT TO SEND</label>
-              <input defaultValue="50.00" style={inputStyle} />
+              <label style={{ fontSize: 9, color: COLORS.textSecondary, letterSpacing: 1, display: "block", marginBottom: 4 }}>ZEC AMOUNT TO SEND</label>
+              <input
+                type="number"
+                value={crossPayZec}
+                onChange={e => setCrossPayZec(e.target.value)}
+                style={inputStyle}
+              />
             </div>
-            <div>
-              <label style={{ fontSize: 9, color: COLORS.textSecondary, letterSpacing: 1, display: "block", marginBottom: 4 }}>RECEIVE TOKEN</label>
-              <input defaultValue="USDC" style={inputStyle} />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0" }}>
+            {/* USD Conversion Preview */}
+            {parseFloat(crossPayZec) > 0 && (
+              <div style={{ background: COLORS.bg, border: `1px solid ${COLORS.teal}33`, borderRadius: 6, padding: "10px 12px" }}>
+                <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 6 }}>CONVERSION PREVIEW</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 10, color: COLORS.textSecondary }}>{crossPayZec} ZEC</span>
+                  <span style={{ fontSize: 10, color: COLORS.textMuted }}>→</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.teal }}>${(parseFloat(crossPayZec) * 68).toFixed(2)} USDC</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 9, color: COLORS.textMuted }}>CrossPay fee (0.5%)</span>
+                  <span style={{ fontSize: 9, color: COLORS.red }}>-${(parseFloat(crossPayZec) * 68 * 0.005).toFixed(2)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 9, color: COLORS.textMuted }}>NEAR gas</span>
+                  <span style={{ fontSize: 9, color: COLORS.red }}>-$0.001</span>
+                </div>
+                <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 6, paddingTop: 6, display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 9, color: COLORS.textSecondary }}>You receive</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.green }}>${(parseFloat(crossPayZec) * 68 * 0.995 - 0.001).toFixed(2)} USDC</span>
+                </div>
+              </div>
+            )}
+
+            {/* Flow diagram */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 0" }}>
               {[
                 { icon: "Ⓩ", label: "Shielded\nZcash", color: COLORS.amber },
                 { arrow: true },
                 { icon: "Ⓝ", label: "NEAR\nIntents", color: COLORS.near },
                 { arrow: true },
-                { icon: "◎", label: "ETH /\nUSDC", color: COLORS.blue },
+                { icon: "◎", label: `${crossPayChain}\nUSDC`, color: COLORS.blue },
               ].map((s, i) => s.arrow
                 ? <span key={i} style={{ color: COLORS.teal, fontSize: 14 }}>→</span>
                 : (
@@ -399,15 +431,48 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
                 )
               )}
             </div>
-            <button style={{ background: COLORS.teal, color: COLORS.bg, border: "none", borderRadius: 6, padding: "10px", fontSize: 11, fontFamily: "monospace", fontWeight: 700, letterSpacing: 1, cursor: "pointer" }}>
-              Ⓩ EXECUTE CROSSPAY
+
+            <button
+              onClick={async () => {
+                setCrossPayLoading(true);
+                setCrossPayResult(null);
+                await new Promise(r => setTimeout(r, 4500)); // simulate CrossPay time
+                setCrossPayResult({
+                  success:   true,
+                  zecSent:   crossPayZec,
+                  usdcRecv:  (parseFloat(crossPayZec) * 68 * 0.995 - 0.001).toFixed(2),
+                  chain:     crossPayChain,
+                  txHash:    `ZEC_SHIELD_${Date.now()}`,
+                });
+                setCrossPayLoading(false);
+              }}
+              disabled={crossPayLoading || !parseFloat(crossPayZec)}
+              style={{ background: crossPayLoading ? COLORS.border : COLORS.teal, color: crossPayLoading ? COLORS.textMuted : COLORS.bg, border: "none", borderRadius: 6, padding: "10px", fontSize: 11, fontFamily: "monospace", fontWeight: 700, letterSpacing: 1, cursor: crossPayLoading ? "default" : "pointer", transition: "all 0.2s" }}>
+              {crossPayLoading ? "⏳ PROCESSING CROSSPAY..." : "Ⓩ EXECUTE CROSSPAY"}
             </button>
+
+            {crossPayResult && (
+              <div style={{ background: COLORS.teal + "11", border: `1px solid ${COLORS.teal}44`, borderRadius: 6, padding: "10px 12px" }}>
+                <div style={{ fontSize: 9, color: COLORS.teal, fontWeight: 700, marginBottom: 6 }}>✅ CROSSPAY COMPLETE</div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontSize: 9, color: COLORS.textMuted }}>Sent</span>
+                  <span style={{ fontSize: 9, color: COLORS.textPrimary }}>{crossPayResult.zecSent} ZEC</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontSize: 9, color: COLORS.textMuted }}>Received</span>
+                  <span style={{ fontSize: 9, color: COLORS.green }}>${crossPayResult.usdcRecv} USDC on {crossPayResult.chain}</span>
+                </div>
+                <div style={{ fontSize: 8, color: COLORS.textMuted, marginTop: 4, wordBreak: "break-all" }}>
+                  tx: {crossPayResult.txHash}
+                </div>
+              </div>
+            )}
+
             <div style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "8px 10px" }}>
               <div style={{ fontSize: 9, color: COLORS.textSecondary, letterSpacing: 1, marginBottom: 4 }}>SUPPORT RECEIPT</div>
               <div style={{ fontSize: 8, color: COLORS.teal, fontFamily: "monospace", wordBreak: "break-all", lineHeight: 1.5 }}>{ticketKey}</div>
             </div>
           </div>
-        </div>
       </div>
     </>
   );

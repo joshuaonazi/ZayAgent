@@ -121,6 +121,7 @@ if (result.action === ACTIONS.TAKE_PROFIT) {
         action: result.action,
         pnlPct: result.pnlPct,
         reason: result.reason,
+        currentPrice: currentPrice,
       });
     }
   }

@@ -84,10 +84,12 @@ export default function ActivityRow({ item, fresh }) {
           </>
         )}
         {isHolding && (
-          <>
-            <div style={{ fontSize: 9, color: COLORS.textMuted }}>
-              now <span style={{ color: COLORS.textSecondary }}>{formatPrice(item.currentPrice)}</span>
-            </div>
+  <>
+            {item.currentPrice && (
+              <div style={{ fontSize: 9, color: COLORS.textMuted }}>
+                now <span style={{ color: COLORS.textSecondary }}>{formatPrice(item.currentPrice)}</span>
+              </div>
+            )}
             {item.pnl && (
               <div style={{ fontSize: 9, fontWeight: 700, color: item.pnl?.startsWith("+") ? COLORS.green : COLORS.red }}>
                 {item.pnl}

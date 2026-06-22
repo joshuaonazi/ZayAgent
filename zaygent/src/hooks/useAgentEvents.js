@@ -2,49 +2,8 @@ import { useState, useEffect } from "react";
 
 const AGENT_API = "http://localhost:5001";
 
-export default function useAgentEvents(maxEvents = 50) {
-  const [events,      setEvents]      = useState([]);
-  const [connected,   setConnected]   = useState(false);
-  const [cycleCount,  setCycleCount]  = useState(0);
-
-  useEffect(() => {
-    let es;
-    try {
-      es = new EventSource(`${AGENT_API}/events`);
-
-      es.onopen = () => setConnected(true);
-
-      es.onmessage = (e) => {
-        try {
-          const event = JSON.parse(e.data);
-          if (event.type === "CONNECTED") {
-            setConnected(true);
-            return;
-          }
-          if (event.type === "CYCLE_START") {
-            setCycleCount(event.data.cycle);
-          }
-          // Add to events list — convert agent events to activity format
-          if (isActivityEvent(event.type)) {
-            const activity = convertToActivity(event);
-            if (activity) {
-              setEvents(prev => [activity, ...prev].slice(0, maxEvents));
-            }
-          }
-        } catch (err) {}
-      };
-
-      es.onerror = () => {
-        setConnected(false);
-      };
-    } catch (err) {
-      setConnected(false);
-    }
-
-    return () => { if (es) es.close(); };
-  }, []);
-
-  return { events, connected, cycleCount };
+if (!window._agentEvents) {
+  window._agentEvents = { log: [], connected: false, cycleCount: 0, subscribed: false };
 }
 
 const isActivityEvent = (type) => [
@@ -54,29 +13,81 @@ const isActivityEvent = (type) => [
 
 const convertToActivity = (event) => {
   const { type, data, ts } = event;
-  const now  = new Date(ts);
+  if (!data) return null;
+
+  const now  = new Date(ts || Date.now());
   const time = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
 
-  const opMap = {
-    POSITION_OPENED: "Bought",
-    POSITION_CLOSED: data?.reason === "TP_HIT" ? "TP Hit" : "SL Exit",
-    SNIPE_EXECUTED:  "Sniped",
-    SNIPE_CLOSED:    data?.reason === "TP_HIT" ? "TP Hit" : "SL Exit",
-    POSITION_UPDATE: "Holding",
-  };
+  const op = type === "POSITION_OPENED" ? "Bought"
+           : type === "POSITION_CLOSED" ? (data.reason === "TP_HIT" ? "TP Hit" : "SL Exit")
+           : type === "SNIPE_EXECUTED"  ? "Sniped"
+           : type === "SNIPE_CLOSED"    ? (data.reason === "TP_HIT" ? "TP Hit" : "SL Exit")
+           : type === "POSITION_UPDATE" ? "Holding"
+           : type;
 
   return {
-    id:       `${type}_${Date.now()}_${Math.random()}`,
-    ts:       time,
-    chain:    data?.chain    || "SOLANA",
-    token:    (data?.token   || "UNKNOWN").trim(),
-    op:       opMap[type]    || type,
-    amount:   data?.amount   || "—",
-    price:    data?.entryPrice || data?.executedPrice || "—",
-    zec:      data?.zecUsed  || "—",
-    shielded: true,
-    profit:   type === "POSITION_CLOSED" && data?.reason === "TP_HIT",
-    pnl:      data?.pnlPct ? `${data.pnlPct > 0 ? "+" : ""}${data.pnlPct}%` : null,
-    fromAgent: true,
+    id:           `${type}_${Date.now()}_${Math.random()}`,
+    ts:           time,
+    chain:        data.chain        || "SOLANA",
+    token:        (data.token       || "UNKNOWN").trim(),
+    op,
+    amount:       data.amount       || data.tokensHeld || "—",
+    price:        data.entryPrice   || data.executedPrice || "—",
+    currentPrice: data.currentPrice && data.currentPrice !== "—" ? data.currentPrice : null,
+    zec:          data.zecUsed      || "—",
+    shielded:     true,
+    profit:       type === "POSITION_CLOSED" && data.reason === "TP_HIT",
+    pnl:          data.pnlPct ? `${data.pnlPct > 0 ? "+" : ""}${data.pnlPct}%` : null,
+    fromAgent:    true,
   };
 };
+
+// Global listeners so all hook instances update together
+const listeners = new Set();
+
+const notifyAll = () => {
+  listeners.forEach(fn => fn([...window._agentEvents.log]));
+};
+
+// Start single SSE connection
+if (!window._agentEvents.subscribed) {
+  window._agentEvents.subscribed = true;
+  try {
+    const es = new EventSource(`${AGENT_API}/events`);
+    es.onopen = () => { window._agentEvents.connected = true; };
+    es.onerror = () => { window._agentEvents.connected = false; };
+    es.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data);
+        if (event.type === "CONNECTED") { window._agentEvents.connected = true; return; }
+        if (event.type === "CYCLE_START") { window._agentEvents.cycleCount = event.data.cycle; }
+        if (isActivityEvent(event.type)) {
+          const activity = convertToActivity(event);
+          if (activity) {
+            window._agentEvents.log.unshift(activity);
+            if (window._agentEvents.log.length > 100) window._agentEvents.log.pop();
+            notifyAll();
+          }
+        }
+      } catch (err) {}
+    };
+  } catch (err) {}
+}
+
+export default function useAgentEvents(maxEvents = 50) {
+  const [events,     setEvents]     = useState([...window._agentEvents.log].slice(0, maxEvents));
+  const [connected,  setConnected]  = useState(window._agentEvents.connected);
+  const [cycleCount, setCycleCount] = useState(window._agentEvents.cycleCount);
+
+  useEffect(() => {
+    const update = (log) => {
+      setEvents(log.slice(0, maxEvents));
+      setConnected(window._agentEvents.connected);
+      setCycleCount(window._agentEvents.cycleCount);
+    };
+    listeners.add(update);
+    return () => listeners.delete(update);
+  }, []);
+
+  return { events, connected, cycleCount };
+}

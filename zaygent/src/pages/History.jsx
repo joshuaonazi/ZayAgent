@@ -1,5 +1,6 @@
+import useTradeHistory from "../hooks/useTradeHistory";
 import { useState, useEffect } from "react";
-import { COLORS, chains, ops, HISTORY_SEED } from "../constants/colors";
+import { COLORS, chains, ops } from "../constants/colors";
 import Badge from "../components/Badge";
 import StatCard from "../components/StatCard";
 import PnLCardModal from "../components/PnLCardModal";
@@ -10,6 +11,7 @@ export default function History() {
   const [search,        setSearch]        = useState("");
   const [selectedTrade, setSelectedTrade] = useState(null);
   const [isMobile,      setIsMobile]      = useState(window.innerWidth < 768);
+  const liveTrades = useTradeHistory();
 
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth < 768);
@@ -17,15 +19,17 @@ export default function History() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  const filtered = HISTORY_SEED.filter(h =>
-    (filterOp    === "ALL" || h.op    === filterOp)    &&
-    (filterChain === "ALL" || h.chain === filterChain) &&
-    h.token.toLowerCase().includes(search.toLowerCase())
-  );
+const allTrades = liveTrades;
 
-  const wins     = HISTORY_SEED.filter(h => h.profit).length;
-  const losses   = HISTORY_SEED.filter(h => h.op === "SL Exit").length;
-  const totalZec = HISTORY_SEED.reduce((s, h) => s + parseFloat(h.zec), 0).toFixed(2);
+const filtered = allTrades.filter(h =>
+  (filterOp    === "ALL" || h.op    === filterOp)    &&
+  (filterChain === "ALL" || h.chain === filterChain) &&
+  h.token.toLowerCase().includes(search.toLowerCase())
+);
+
+const wins     = allTrades.filter(h => h.profit).length;
+const losses   = allTrades.filter(h => h.op === "SL Exit").length;
+const totalZec = allTrades.reduce((s, h) => s + parseFloat(h.zec || 0), 0).toFixed(2);
 
   const inputStyle = {
     background: COLORS.bgCard, border: `1px solid ${COLORS.border}`,
@@ -37,15 +41,17 @@ export default function History() {
     <div>
       {selectedTrade && <PnLCardModal trade={selectedTrade} onClose={() => setSelectedTrade(null)} />}
 
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: isMobile ? 16 : 20, fontWeight: 600, color: COLORS.textPrimary, letterSpacing: 1 }}>History</h1>
-        <p style={{ margin: 0, fontSize: 11, color: COLORS.textSecondary }}>Full trade execution log</p>
-      </div>
+      <p style={{ margin: 0, fontSize: 11, color: COLORS.textSecondary }}>
+        Full trade execution log —{" "}
+        {liveTrades.length > 0
+          ? <span style={{ color: COLORS.teal }}>● {liveTrades.length} live trades</span>
+          : <span style={{ color: COLORS.textMuted }}>waiting for agent trades...</span>
+        }
+      </p>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
-        <StatCard label="Trades"    value={HISTORY_SEED.length} />
-        <StatCard label="Win Rate"  value={`${((wins / HISTORY_SEED.length) * 100).toFixed(0)}%`} color={COLORS.green} />
-        <StatCard label="SL Exits"  value={losses}              color={COLORS.red}   />
+        <StatCard label="Trades"    value={allTrades.length} />
+        <StatCard label="Win Rate" value={allTrades.length > 0 ? `${((wins / allTrades.length) * 100).toFixed(0)}%` : "0%"} color={COLORS.green} />        <StatCard label="SL Exits"  value={losses}              color={COLORS.red}   />
         <StatCard label="ZEC Total" value={`$${totalZec}`}      color={COLORS.amber} />
       </div>
 
@@ -79,6 +85,16 @@ export default function History() {
       </div>
 
       {/* Table */}
+      {allTrades.length === 0 && (
+        <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "40px 20px", textAlign: "center" }}>
+          <div style={{ fontSize: 24, marginBottom: 10 }}>🤖</div>
+          <div style={{ fontSize: 13, color: COLORS.textPrimary, marginBottom: 6 }}>No trades yet</div>
+          <div style={{ fontSize: 11, color: COLORS.textSecondary }}>
+            Agent trades will appear here in real time as they execute
+          </div>
+        </div>
+      )}
+
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <div style={{ minWidth: 620 }}>
@@ -90,7 +106,10 @@ export default function History() {
             <div style={{ maxHeight: 420, overflow: "auto" }}>
               {filtered.map(item => (
                 <div key={item.id} style={{ display: "grid", gridTemplateColumns: "70px 55px 70px 1fr 90px 70px 70px 60px 70px", gap: 6, padding: "9px 12px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 10, fontFamily: "monospace", alignItems: "center" }}>
-                  <span style={{ color: COLORS.textMuted }}>{item.ts}</span>
+                    <div>
+                      <div style={{ fontSize: 9, color: COLORS.textMuted }}>{item.date || "—"}</div>
+                      <div style={{ fontSize: 10, color: COLORS.textSecondary }}>{item.ts}</div>
+                    </div>
                   <Badge chain={item.chain} />
                   <span style={{ color: item.profit ? COLORS.teal : item.op === "SL Exit" ? COLORS.red : COLORS.textSecondary, fontWeight: 600 }}>{item.op}</span>
                   <span style={{ color: COLORS.textPrimary }}>
