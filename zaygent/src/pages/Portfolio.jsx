@@ -59,8 +59,16 @@ export default function Portfolio() {
                     <span style={{ fontSize: 12, color: COLORS.textPrimary, fontWeight: 600 }}>{(p.token || "").trim()}</span>
                   </div>
                   <span style={{ fontSize: 10, color: COLORS.textSecondary }}>{p.chain}</span>
-                  <span style={{ fontSize: 10, color: COLORS.textPrimary, fontFamily: "monospace" }}>${parseFloat(p.entryPrice || 0).toFixed(6)}</span>
-                  <span style={{ fontSize: 10, color: COLORS.textSecondary, fontFamily: "monospace" }}>{parseFloat(p.tokensHeld || 0).toFixed(4)}</span>
+                  <span style={{ fontSize: 10, color: COLORS.textPrimary, fontFamily: "monospace" }}>
+                    ${parseFloat(p.entryPrice || 0) < 0.01
+                      ? parseFloat(p.entryPrice || 0).toFixed(6)
+                      : parseFloat(p.entryPrice || 0).toFixed(4)}
+                  </span>
+                  <span style={{ fontSize: 10, color: COLORS.textSecondary, fontFamily: "monospace" }}>
+                    {parseFloat(p.tokensHeld || 0) > 1000
+                      ? parseFloat(p.tokensHeld || 0).toFixed(2)
+                      : parseFloat(p.tokensHeld || 0).toFixed(4)}
+                  </span>
                   <span style={{ fontSize: 10, color: COLORS.green }}>+{p.takeProfit}%</span>
                   <span style={{ fontSize: 10, color: COLORS.red }}>-{p.stopLoss}%</span>
                 </div>
