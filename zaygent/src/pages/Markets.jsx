@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
-import { COLORS, chains, MARKET_TOKENS } from "../constants/colors";
+import { COLORS, chains } from "../constants/colors";
 import Badge from "../components/Badge";
 import StatCard from "../components/StatCard";
 
 export default function Markets() {
-  const [filter,   setFilter]   = useState("ALL");
-  const [search,   setSearch]   = useState("");
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [filter,    setFilter]    = useState("ALL");
+  const [search,    setSearch]    = useState("");
+  const [tokens,    setTokens]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [isMobile,  setIsMobile]  = useState(window.innerWidth < 768);
 
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth < 768);
@@ -14,10 +16,81 @@ export default function Markets() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  const filtered = MARKET_TOKENS.filter(t =>
+  // Fetch live tokens from GeckoTerminal
+  useEffect(() => {
+    const fetchTokens = async () => {
+      setLoading(true);
+      const results = [];
+      const networks = [
+        { id: "solana",   chain: "SOLANA" },
+        { id: "bsc",      chain: "BSC"    },
+        { id: "eth",      chain: "ETH"    },
+      ];
+
+      for (const network of networks) {
+        try {
+          const res   = await fetch(`https://api.geckoterminal.com/api/v2/networks/${network.id}/trending_pools?page=1`);
+          const data  = await res.json();
+          const pools = data?.data || [];
+          pools.forEach(pool => {
+            const attrs    = pool.attributes || {};
+            const change24 = parseFloat(attrs.price_change_percentage?.h24 || 0);
+            const price    = parseFloat(attrs.base_token_price_usd || 0);
+            const vol      = parseFloat(attrs.volume_usd?.h24 || 0);
+            const mcap     = parseFloat(attrs.fdv_usd || 0);
+            const liq      = parseFloat(attrs.reserve_in_usd || 0);
+            results.push({
+              name:    attrs.name?.split("/")[0]?.trim() || "UNKNOWN",
+              chain:   network.chain,
+              price:   price < 0.01 ? price.toFixed(6) : price.toFixed(4),
+              change:  `${change24 >= 0 ? "+" : ""}${change24.toFixed(2)}%`,
+              vol:     formatNum(vol),
+              mcap:    formatNum(mcap),
+              liq:     formatNum(liq),
+              up:      change24 >= 0,
+              address: pool.id?.split("_")[1] || null,
+            });
+          });
+          // Rate limit delay
+          await new Promise(r => setTimeout(r, 1500));
+        } catch (err) {
+          console.warn(`Markets fetch error (${network.id}):`, err.message);
+        }
+      }
+      setTokens(results);
+      setLoading(false);
+    };
+
+    fetchTokens();
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchTokens, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatNum = (val) => {
+    if (!val || val === 0) return "$0";
+    if (val >= 1e9) return `$${(val / 1e9).toFixed(1)}B`;
+    if (val >= 1e6) return `$${(val / 1e6).toFixed(1)}M`;
+    if (val >= 1e3) return `$${(val / 1e3).toFixed(0)}K`;
+    return `$${val.toFixed(2)}`;
+  };
+
+  const filtered = tokens.filter(t =>
     (filter === "ALL" || t.chain === filter) &&
     t.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const topGainer = tokens.reduce((a, b) =>
+    parseFloat(a.change) > parseFloat(b.change) ? a : b, { change: "0%" }
+  );
+  const topLoser = tokens.reduce((a, b) =>
+    parseFloat(a.change) < parseFloat(b.change) ? a : b, { change: "0%" }
+  );
+  const totalVol = tokens.reduce((s, t) => {
+    const v = parseFloat(t.vol.replace(/[$BMK]/g, "")) *
+      (t.vol.includes("B") ? 1e9 : t.vol.includes("M") ? 1e6 : t.vol.includes("K") ? 1e3 : 1);
+    return s + v;
+  }, 0);
 
   const inputStyle = {
     background: COLORS.bgCard, border: `1px solid ${COLORS.border}`,
@@ -27,16 +100,22 @@ export default function Markets() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: isMobile ? 16 : 20, fontWeight: 600, color: COLORS.textPrimary, letterSpacing: 1 }}>Markets</h1>
-        <p style={{ margin: 0, fontSize: 11, color: COLORS.textSecondary }}>Live cross-chain token feed — DEX data</p>
+      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 16 : 20, fontWeight: 600, color: COLORS.textPrimary, letterSpacing: 1 }}>Markets</h1>
+          <p style={{ margin: 0, fontSize: 11, color: COLORS.textSecondary }}>
+            Live cross-chain token feed — GeckoTerminal
+            {loading && <span style={{ color: COLORS.amber }}> · refreshing...</span>}
+          </p>
+        </div>
+        <span style={{ fontSize: 9, color: COLORS.textMuted }}>{tokens.length} tokens live</span>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
-        <StatCard label="Trending"   value="10"     color={COLORS.teal}  />
-        <StatCard label="Volume"     value="$2.1B"                       />
-        <StatCard label="Top Gainer" value="+44.1%" color={COLORS.green} />
-        <StatCard label="Top Loser"  value="-4.2%"  color={COLORS.red}   />
+        <StatCard label="Trending"   value={`${tokens.length}`}      color={COLORS.teal}  />
+        <StatCard label="Volume"     value={formatNum(totalVol)}                           />
+        <StatCard label="Top Gainer" value={topGainer.change}         color={COLORS.green} />
+        <StatCard label="Top Loser"  value={topLoser.change}          color={COLORS.red}   />
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -53,33 +132,50 @@ export default function Markets() {
             }}>{f}</button>
           ))}
         </div>
+        <span style={{ fontSize: 10, color: COLORS.textMuted, marginLeft: "auto" }}>{filtered.length} tokens</span>
       </div>
 
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 560 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 70px 100px 80px 80px 80px 80px", gap: 6, padding: "8px 12px", borderBottom: `1px solid ${COLORS.border}` }}>
-              {["#", "TOKEN", "CHAIN", "PRICE", "24H%", "VOL", "MCAP", ""].map(h => (
-                <span key={h} style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1 }}>{h}</span>
+        {loading && tokens.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, letterSpacing: 1 }}>🔍 Fetching live market data...</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 560 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 70px 100px 80px 80px 80px 80px", gap: 6, padding: "8px 12px", borderBottom: `1px solid ${COLORS.border}` }}>
+                {["#", "TOKEN", "CHAIN", "PRICE", "24H%", "VOL", "MCAP", ""].map(h => (
+                  <span key={h} style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1 }}>{h}</span>
+                ))}
+              </div>
+              {filtered.map((t, i) => (
+                <div key={`${t.name}_${t.chain}_${i}`} style={{ display: "grid", gridTemplateColumns: "32px 1fr 70px 100px 80px 80px 80px 80px", gap: 6, padding: "10px 12px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
+                  <span style={{ fontSize: 10, color: COLORS.textMuted }}>{i + 1}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: chains[t.chain]?.color + "22", border: `1px solid ${chains[t.chain]?.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: chains[t.chain]?.color, fontWeight: 700, flexShrink: 0 }}>{t.name[0]}</div>
+                    <span style={{ fontSize: 11, color: COLORS.textPrimary, fontWeight: 600 }}>{t.name}</span>
+                  </div>
+                  <Badge chain={t.chain} />
+                  <span style={{ fontSize: 10, color: COLORS.textPrimary, fontFamily: "monospace" }}>${t.price}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: t.up ? COLORS.green : COLORS.red }}>{t.change}</span>
+                  <span style={{ fontSize: 10, color: COLORS.textSecondary }}>{t.vol}</span>
+                  <span style={{ fontSize: 10, color: COLORS.textSecondary }}>{t.mcap}</span>
+                  <button
+                    onClick={() => {
+                      // Pre-fill sniper terminal with this token
+                      if (t.address) {
+                        window._sniperCA    = t.address;
+                        window._sniperChain = t.chain;
+                      }
+                    }}
+                    style={{ background: COLORS.tealFaint, color: COLORS.teal, border: `1px solid ${COLORS.teal}44`, borderRadius: 4, padding: "3px 8px", fontSize: 9, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>
+                    SNIPE
+                  </button>
+                </div>
               ))}
             </div>
-            {filtered.map((t, i) => (
-              <div key={t.name} style={{ display: "grid", gridTemplateColumns: "32px 1fr 70px 100px 80px 80px 80px 80px", gap: 6, padding: "10px 12px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
-                <span style={{ fontSize: 10, color: COLORS.textMuted }}>{i + 1}</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: chains[t.chain]?.color + "22", border: `1px solid ${chains[t.chain]?.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: chains[t.chain]?.color, fontWeight: 700, flexShrink: 0 }}>{t.name[0]}</div>
-                  <span style={{ fontSize: 11, color: COLORS.textPrimary, fontWeight: 600 }}>{t.name}</span>
-                </div>
-                <Badge chain={t.chain} />
-                <span style={{ fontSize: 10, color: COLORS.textPrimary, fontFamily: "monospace" }}>${t.price}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: t.up ? COLORS.green : COLORS.red }}>{t.change}</span>
-                <span style={{ fontSize: 10, color: COLORS.textSecondary }}>{t.vol}</span>
-                <span style={{ fontSize: 10, color: COLORS.textSecondary }}>{t.mcap}</span>
-                <button style={{ background: COLORS.tealFaint, color: COLORS.teal, border: `1px solid ${COLORS.teal}44`, borderRadius: 4, padding: "3px 8px", fontSize: 9, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>SNIPE</button>
-              </div>
-            ))}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
