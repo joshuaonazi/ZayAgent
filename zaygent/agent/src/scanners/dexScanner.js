@@ -42,7 +42,7 @@ const fetchGeckoTrending = async () => {
       console.warn(`⚠️  GeckoTerminal ${network}: ${err.message}`);
     }
     // Delay between requests to avoid 429
-    await new Promise(r => setTimeout(r, 2500));
+    await new Promise(r => setTimeout(r, 3500));
   }
   return results;
 };

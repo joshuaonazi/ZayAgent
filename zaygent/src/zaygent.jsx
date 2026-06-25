@@ -199,8 +199,8 @@ export default function Zaygent() {
 
       {/* Mobile Bottom Nav */}
       {isMobile && (
-        <div style={{ background: COLORS.bgCard, borderTop: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-around", padding: "6px 0", flexShrink: 0 }}>
-          {navItems.slice(0, 6).map(n => (
+        <div style={{ background: COLORS.bgCard, borderTop: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-around", padding: "6px 0", flexShrink: 0, overflowX: "auto" }}>
+          {navItems.map(n => (
             <div key={n.label} onClick={() => handleNavClick(n.label)}
               style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "4px 6px", cursor: "pointer", flex: 1 }}>
               <span style={{ fontSize: 16, color: activeNav === n.label ? COLORS.teal : COLORS.textMuted }}>{n.icon}</span>

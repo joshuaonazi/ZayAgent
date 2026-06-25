@@ -25,7 +25,7 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
   const [tokenLookupError,   setTokenLookupError]   = useState(null);
   const [sniperCA,      setSniperCA]      = useState("");
   const [sniperNetwork, setSniperNetwork] = useState("SOLANA");
-  const [allocation,    setAllocation]    = useState(50);
+  const [allocation, setAllocation] = useState(20);
   const [takeProfit,    setTakeProfit]    = useState(500);
   const [stopLoss,      setStopLoss]      = useState(30);
   const [limitEnabled,  setLimitEnabled]  = useState(false);
