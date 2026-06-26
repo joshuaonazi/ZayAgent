@@ -68,6 +68,39 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
   return () => clearInterval(interval);
 }, []);
 
+useEffect(() => {
+  if (window._sniperCA) {
+    setSniperCA(window._sniperCA);
+    if (window._sniperChain) setSniperNetwork(window._sniperChain);
+    // Trigger token lookup
+    const ca = window._sniperCA;
+    window._sniperCA    = null;
+    window._sniperChain = null;
+    // Auto lookup
+    if (ca.length >= 32) {
+      setTokenLookupLoading(true);
+      fetch(`https://api.dexscreener.com/latest/dex/tokens/${ca}`)
+        .then(r => r.json())
+        .then(data => {
+          const pair = data?.pairs?.[0];
+          if (pair) {
+            setTokenInfo({
+              name:      pair.baseToken?.name   || "Unknown",
+              symbol:    pair.baseToken?.symbol || "???",
+              price:     parseFloat(pair.priceUsd || 0),
+              chain:     pair.chainId?.toUpperCase() === "ETHEREUM" ? "ETH" : pair.chainId?.toUpperCase(),
+              liquidity: pair.liquidity?.usd  || 0,
+              change24h: pair.priceChange?.h24 || 0,
+              dex:       pair.dexId || "unknown",
+            });
+          }
+        })
+        .catch(() => {})
+        .finally(() => setTokenLookupLoading(false));
+    }
+  }
+}, []);
+
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", h);

@@ -1,0 +1,282 @@
+import { useState, useEffect } from "react";
+import { COLORS } from "../constants/colors";
+
+export default function FundAccount() {
+  const [zecPrice,     setZecPrice]     = useState(400);
+  const [copied,       setCopied]       = useState(null);
+  const [activeTab,    setActiveTab]    = useState("ZEC");
+  const [autoShield,   setAutoShield]   = useState(true);
+  const [isMobile,     setIsMobile]     = useState(window.innerWidth < 768);
+  const [depositAmt,   setDepositAmt]   = useState("");
+
+  // Simulated deposit addresses — in production generated from Zcash SDK
+  const addresses = {
+    ZEC:    "zs1zaygentshieldedvaultaddress9x2kp4qm8wn3lf7vc0p5r6t8y2u4i6o8e0q2w4r6t8y2u4i",
+    ETH:    "0x7A4B2c9D1e3F5a8B0c2E4f6A8b0C2e4F6a8B0c2E",
+    BSC:    "0x7A4B2c9D1e3F5a8B0c2E4f6A8b0C2e4F6a8B0c2E",
+    SOLANA: "ZAYgnt7xK2mP4qW8nL3fV9cR6tY1uI5oE0eQ2wR4tY",
+  };
+
+  const chainColors = {
+    ZEC:    COLORS.amber,
+    ETH:    "#627eea",
+    BSC:    "#f0b90b",
+    SOLANA: "#9945ff",
+  };
+
+  const chainIcons = {
+    ZEC: "Ⓩ", ETH: "Ξ", BSC: "⬡", SOLANA: "◎",
+  };
+
+  // Simulated deposit history
+  const depositHistory = [
+    { id: 1, chain: "ZEC",    amount: "5.000",    usd: (5    * zecPrice).toFixed(2), status: "SHIELDED",  ts: "25 Jun 14:32", txHash: "zec_tx_abc123" },
+    { id: 2, chain: "ETH",    amount: "0.05 ETH", usd: "187.50",                    status: "CONVERTED", ts: "24 Jun 09:11", txHash: "0xeth_tx_def456" },
+    { id: 3, chain: "BSC",    amount: "50 USDT",  usd: "50.00",                     status: "CONVERTED", ts: "23 Jun 18:44", txHash: "0xbsc_tx_ghi789" },
+    { id: 4, chain: "SOLANA", amount: "2 SOL",    usd: "320.00",                    status: "CONVERTED", ts: "22 Jun 11:20", txHash: "sol_tx_jkl012" },
+    { id: 5, chain: "ZEC",    amount: "2.500",    usd: (2.5  * zecPrice).toFixed(2), status: "SHIELDED", ts: "21 Jun 08:05", txHash: "zec_tx_mno345" },
+  ];
+
+  const totalDeposited = depositHistory.reduce((s, d) => s + parseFloat(d.usd), 0);
+  const vaultBalance   = (18.220 + (window._agentStats?.zecReturned || 0)).toFixed(3);
+  const vaultUSD       = (parseFloat(vaultBalance) * zecPrice).toFixed(2);
+
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+
+  useEffect(() => {
+    const fetchZecPrice = async () => {
+      try {
+        const res  = await fetch("https://api.coincap.io/v2/assets/zcash");
+        const data = await res.json();
+        if (data?.data?.priceUsd) setZecPrice(parseFloat(data.data.priceUsd));
+      } catch (e) {}
+    };
+    fetchZecPrice();
+  }, []);
+
+  const handleCopy = (key, value) => {
+    navigator.clipboard.writeText(value).catch(() => {});
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const cardStyle = {
+    background: COLORS.bgCard, border: `1px solid ${COLORS.border}`,
+    borderRadius: 10, overflow: "hidden", marginBottom: 12,
+  };
+
+  const statusColor = (s) =>
+    s === "SHIELDED"  ? COLORS.teal  :
+    s === "CONVERTED" ? COLORS.green :
+    s === "PENDING"   ? COLORS.amber : COLORS.textMuted;
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <h1 style={{ margin: 0, fontSize: isMobile ? 16 : 20, fontWeight: 600, color: COLORS.textPrimary, letterSpacing: 1 }}>Fund Account</h1>
+        <p style={{ margin: 0, fontSize: 11, color: COLORS.textSecondary }}>Deposit funds — all assets auto-shield through ZEC before trading</p>
+      </div>
+
+      {/* Vault Summary */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
+        {[
+          { label: "Vault Balance",    value: `${vaultBalance} ZEC`, color: COLORS.amber       },
+          { label: "USD Value",        value: `~$${parseFloat(vaultUSD).toLocaleString()}`, color: COLORS.textPrimary },
+          { label: "Total Deposited",  value: `$${totalDeposited.toFixed(2)}`, color: COLORS.green },
+          { label: "ZEC Price",        value: `$${zecPrice.toFixed(2)}`,       color: COLORS.amber },
+        ].map(s => (
+          <div key={s.label} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "12px 14px" }}>
+            <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 6 }}>{s.label.toUpperCase()}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: s.color, fontFamily: "monospace" }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+
+        {/* Left — Deposit Addresses */}
+        <div>
+          <div style={cardStyle}>
+            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>DEPOSIT ADDRESSES</span>
+              <span style={{ fontSize: 9, color: COLORS.teal, background: COLORS.tealFaint, padding: "2px 8px", borderRadius: 3 }}>SIMULATED</span>
+            </div>
+
+            {/* Chain Tabs */}
+            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.border}` }}>
+              {Object.keys(addresses).map(chain => (
+                <button key={chain} onClick={() => setActiveTab(chain)} style={{
+                  flex: 1, padding: "10px 4px", border: "none", cursor: "pointer",
+                  background:   activeTab === chain ? chainColors[chain] + "22" : "transparent",
+                  borderBottom: activeTab === chain ? `2px solid ${chainColors[chain]}` : "2px solid transparent",
+                  color:        activeTab === chain ? chainColors[chain] : COLORS.textMuted,
+                  fontSize: 12, fontFamily: "monospace", fontWeight: 700,
+                  transition: "all 0.15s",
+                }}>
+                  {chainIcons[chain]}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ padding: 16 }}>
+              {/* Chain Info */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: chainColors[activeTab] + "22", border: `1px solid ${chainColors[activeTab]}66`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: chainColors[activeTab] }}>
+                  {chainIcons[activeTab]}
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>{activeTab}</div>
+                  <div style={{ fontSize: 10, color: COLORS.textSecondary }}>
+                    {activeTab === "ZEC" ? "Shielded sapling address — fully private" :
+                     activeTab === "ETH" ? "ERC-20 compatible — auto-converts to ZEC" :
+                     activeTab === "BSC" ? "BEP-20 compatible — auto-converts to ZEC" :
+                     "SPL compatible — auto-converts to ZEC"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Address Display */}
+              <div style={{ background: COLORS.bg, border: `1px solid ${chainColors[activeTab]}44`, borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+                <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8 }}>YOUR {activeTab} DEPOSIT ADDRESS</div>
+                <div style={{ fontSize: 10, color: chainColors[activeTab], fontFamily: "monospace", wordBreak: "break-all", lineHeight: 1.8 }}>
+                  {addresses[activeTab]}
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleCopy(activeTab, addresses[activeTab])}
+                style={{ width: "100%", background: copied === activeTab ? COLORS.green : chainColors[activeTab] + "22", color: copied === activeTab ? COLORS.bg : chainColors[activeTab], border: `1px solid ${chainColors[activeTab]}44`, borderRadius: 6, padding: "10px", fontSize: 11, fontFamily: "monospace", fontWeight: 700, cursor: "pointer", transition: "all 0.2s", marginBottom: 12 }}>
+                {copied === activeTab ? "✓ COPIED!" : `⧉ COPY ${activeTab} ADDRESS`}
+              </button>
+
+              {/* Deposit amount calculator */}
+              <div style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "12px 14px" }}>
+                <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8 }}>DEPOSIT CALCULATOR</div>
+                <input
+                  type="number"
+                  value={depositAmt}
+                  onChange={e => setDepositAmt(e.target.value)}
+                  placeholder={`Enter ${activeTab} amount...`}
+                  style={{ width: "100%", background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "8px 10px", color: COLORS.textPrimary, fontSize: 12, fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 8 }}
+                />
+                {depositAmt && parseFloat(depositAmt) > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 10, color: COLORS.textMuted }}>You send</span>
+                      <span style={{ fontSize: 10, color: COLORS.textPrimary }}>{depositAmt} {activeTab}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 10, color: COLORS.textMuted }}>CrossPay fee (0.5%)</span>
+                      <span style={{ fontSize: 10, color: COLORS.red }}>-${(parseFloat(depositAmt) * (activeTab === "ZEC" ? zecPrice : 1) * 0.005).toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${COLORS.border}`, paddingTop: 4 }}>
+                      <span style={{ fontSize: 10, color: COLORS.textSecondary }}>ZEC credited to vault</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.amber }}>
+                        {activeTab === "ZEC"
+                          ? (parseFloat(depositAmt) * 0.995).toFixed(4)
+                          : ((parseFloat(depositAmt) * 0.995) / zecPrice).toFixed(4)
+                        } ZEC
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Auto Shield Settings */}
+          <div style={cardStyle}>
+            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>AUTO-SHIELD SETTINGS</span>
+            </div>
+            <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                { label: "Auto-convert deposits to ZEC", key: "autoShield", value: autoShield, onChange: () => setAutoShield(p => !p) },
+              ].map(item => (
+                <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                  <span style={{ fontSize: 11, color: COLORS.textSecondary }}>{item.label}</span>
+                  <div onClick={item.onChange} style={{ width: 32, height: 17, borderRadius: 9, background: item.value ? COLORS.teal : COLORS.border, position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
+                    <div style={{ position: "absolute", top: 2, left: item.value ? 15 : 2, width: 13, height: 13, borderRadius: "50%", background: item.value ? COLORS.bg : COLORS.textMuted, transition: "left 0.2s" }} />
+                  </div>
+                </div>
+              ))}
+              <div style={{ fontSize: 9, color: COLORS.textMuted, lineHeight: 1.8 }}>
+                When enabled, all ETH/BSC/SOL deposits are automatically routed through NEAR Intents and converted to shielded ZEC before being credited to your vault. This ensures maximum privacy across all chains.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right — Deposit History */}
+        <div>
+          <div style={cardStyle}>
+            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>DEPOSIT HISTORY</span>
+              <span style={{ fontSize: 9, color: COLORS.textMuted }}>{depositHistory.length} transactions</span>
+            </div>
+            <div>
+              {depositHistory.map((d, i) => (
+                <div key={d.id} style={{ padding: "14px 16px", borderBottom: i < depositHistory.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: chainColors[d.chain] + "22", border: `1px solid ${chainColors[d.chain]}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: chainColors[d.chain], flexShrink: 0 }}>
+                        {chainIcons[d.chain]}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.textPrimary }}>{d.amount}</div>
+                        <div style={{ fontSize: 9, color: COLORS.textMuted }}>{d.ts}</div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.amber }}>${d.usd}</div>
+                      <div style={{ fontSize: 9, color: statusColor(d.status), fontWeight: 700 }}>{d.status}</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 9, color: COLORS.textMuted, fontFamily: "monospace", background: COLORS.bg, padding: "4px 8px", borderRadius: 4, wordBreak: "break-all" }}>
+                    tx: {d.txHash}
+                  </div>
+                  {d.status !== "ZEC" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
+                      <span style={{ fontSize: 8, color: chainColors[d.chain] }}>{chainIcons[d.chain]}</span>
+                      <div style={{ flex: 1, height: 1, background: COLORS.teal + "44" }} />
+                      <span style={{ fontSize: 8, color: COLORS.near }}>Ⓝ</span>
+                      <div style={{ flex: 1, height: 1, background: COLORS.teal + "44" }} />
+                      <span style={{ fontSize: 8, color: COLORS.amber }}>Ⓩ SHIELDED</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* How it works */}
+          <div style={cardStyle}>
+            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>HOW DEPOSITS WORK</span>
+            </div>
+            <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                { step: "1", title: "Send to your deposit address", desc: "Send any supported asset from your CEX or wallet to your unique deposit address above.", icon: "📤" },
+                { step: "2", title: "CrossPay routes via NEAR Intents", desc: "Your deposit is automatically routed through NEAR Intents solver for optimal cross-chain conversion.", icon: "⚡" },
+                { step: "3", title: "Assets shielded as ZEC", desc: "All deposits are converted to ZEC and shielded in your private sapling pool. No on-chain linkability.", icon: "🔐" },
+                { step: "4", title: "Agent uses vault to trade", desc: "Your trading agent pulls from the shielded vault each time it executes a trade. Profits return here.", icon: "🤖" },
+              ].map(item => (
+                <div key={item.step} style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                  <div style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 11, color: COLORS.textPrimary, fontWeight: 600, marginBottom: 2 }}>{item.title}</div>
+                    <div style={{ fontSize: 10, color: COLORS.textSecondary, lineHeight: 1.6 }}>{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -7,6 +7,7 @@ import Portfolio     from "./pages/Portfolio";
 import PrivacyCenter from "./pages/PrivacyCenter";
 import History       from "./pages/History";
 import Admin         from "./pages/Admin";
+import FundAccount from "./pages/FundAccount";
 
 function randomActivity() {
   const chainKeys = ["SOLANA", "BSC", "ETH"];
@@ -30,6 +31,7 @@ const navItems = [
   { icon: "◉", label: "Privacy Center" },
   { icon: "◷", label: "History"        },
   { icon: "🛡", label: "Admin"          },
+  { icon: "💳", label: "Fund Account"   },
 ];
 
 export default function Zaygent() {
@@ -47,6 +49,12 @@ export default function Zaygent() {
     const h = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => setActiveNav(e.detail);
+    window.addEventListener("zaygent:navigate", handler);
+    return () => window.removeEventListener("zaygent:navigate", handler);
   }, []);
 
   // useEffect(() => {
@@ -73,6 +81,7 @@ export default function Zaygent() {
       case "Privacy Center": return <PrivacyCenter />;
       case "History":        return <History />;
       case "Admin":          return <Admin />;
+      case "Fund Account":      return <FundAccount />;
       default:               return <Dashboard agentActive={agentActive} activities={activities} freshIds={freshIds} />;
     }
   };

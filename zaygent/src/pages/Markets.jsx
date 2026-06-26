@@ -162,10 +162,12 @@ export default function Markets() {
                   <span style={{ fontSize: 10, color: COLORS.textSecondary }}>{t.mcap}</span>
                   <button
                     onClick={() => {
-                      // Pre-fill sniper terminal with this token
                       if (t.address) {
                         window._sniperCA    = t.address;
                         window._sniperChain = t.chain;
+                        // Navigate to dashboard
+                        window._navigateTo = "Dashboard";
+                        window.dispatchEvent(new CustomEvent("zaygent:navigate", { detail: "Dashboard" }));
                       }
                     }}
                     style={{ background: COLORS.tealFaint, color: COLORS.teal, border: `1px solid ${COLORS.teal}44`, borderRadius: 4, padding: "3px 8px", fontSize: 9, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>

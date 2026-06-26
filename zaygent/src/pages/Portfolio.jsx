@@ -29,10 +29,10 @@ export default function Portfolio() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
-        <StatCard label="Total Value" value="$11,120" />
-        <StatCard label="Total PnL"   value="+$1,840" color={COLORS.green} />
-        <StatCard label="PnL %"       value="+19.8%"  color={COLORS.green} />
-        <StatCard label="Positions"   value="6"       color={COLORS.teal}  />
+        <StatCard label="Total Value" value={`$${(allPositions.length * 135.32).toFixed(0) || "0"}`} />
+        <StatCard label="ZEC Returned" value={`${(window._agentStats?.zecReturned || 0).toFixed(4)} ZEC`} color={COLORS.amber} />
+        <StatCard label="TP Hits"     value={window._agentStats?.tpHits  || 0} color={COLORS.green} />
+        <StatCard label="Positions"   value={allPositions.length || 0}          color={COLORS.teal}  />
       </div>
 
       {/* Live Agent Positions */}
@@ -138,42 +138,22 @@ export default function Portfolio() {
       </div>
 
       {/* Strategy Performance */}
-      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
+      {/* Strategy Performance — Post Hackathon */}
+      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: "hidden", opacity: 0.5 }}>
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>STRATEGY PERFORMANCE</span>
+          <span style={{ fontSize: 9, color: COLORS.amber, background: COLORS.amber + "22", border: `1px solid ${COLORS.amber}44`, borderRadius: 4, padding: "2px 8px", letterSpacing: 1 }}>COMING SOON</span>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 500 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 90px 90px 80px 70px 70px", gap: 8, padding: "6px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
-              {["STRATEGY", "CHAIN", "ENTRY", "CURRENT", "PNL", "STATUS", "CARD"].map(h => (
-                <span key={h} style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1 }}>{h}</span>
-              ))}
-            </div>
-            {STRATEGIES.map((s, i) => {
-              const entry   = (800 + i * 123).toFixed(2);
-              const current = (parseFloat(entry) * (1 + parseFloat(s.pnl) / 100)).toFixed(2);
-              const tradeData = {
-                token: s.pair.split("/")[0], chain: s.chain,
-                op: s.active ? "Ongoing" : "Exited",
-                price: entry, amount: "1.000", pnl: s.pnl,
-                zec: (150 + i * 30).toFixed(2),
-                profit: parseFloat(s.pnl) > 0, shielded: true,
-              };
-              return (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 70px 90px 90px 80px 70px 70px", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: COLORS.textPrimary, fontWeight: 500 }}>{s.pair}</div>
-                    <div style={{ fontSize: 9, color: COLORS.textSecondary }}>{s.strategy}</div>
-                  </div>
-                  <Badge chain={s.chain} />
-                  <span style={{ fontSize: 10, color: COLORS.textSecondary, fontFamily: "monospace" }}>${entry}</span>
-                  <span style={{ fontSize: 10, color: COLORS.textPrimary, fontFamily: "monospace" }}>${current}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.green }}>{s.pnl}</span>
-                  <span style={{ fontSize: 9, color: s.active ? COLORS.teal : COLORS.textMuted, fontWeight: 700 }}>{s.active ? "ACTIVE" : "PAUSED"}</span>
-                  <button onClick={() => setSelectedTrade(tradeData)} style={{ background: COLORS.tealFaint, color: COLORS.teal, border: `1px solid ${COLORS.teal}44`, borderRadius: 4, padding: "3px 6px", fontSize: 9, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>⬇ CARD</button>
-                </div>
-              );
-            })}
+        <div style={{ padding: "40px 20px", textAlign: "center" }}>
+          <div style={{ fontSize: 28, marginBottom: 12 }}>📊</div>
+          <div style={{ fontSize: 13, color: COLORS.textPrimary, fontWeight: 600, marginBottom: 6 }}>Advanced Strategy Analytics</div>
+          <div style={{ fontSize: 11, color: COLORS.textSecondary, lineHeight: 1.8, maxWidth: 400, margin: "0 auto" }}>
+            Detailed per-strategy performance tracking, win rate analytics, drawdown analysis, and PnL attribution will be available in the next release.
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 16, flexWrap: "wrap" }}>
+            {["Win Rate Analytics", "Drawdown Analysis", "PnL Attribution", "Strategy Comparison"].map(f => (
+              <span key={f} style={{ fontSize: 9, color: COLORS.textMuted, background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 4, padding: "4px 10px", letterSpacing: 1 }}>{f}</span>
+            ))}
           </div>
         </div>
       </div>
