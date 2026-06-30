@@ -32,13 +32,47 @@ export default function Markets() {
           const res   = await fetch(`https://api.geckoterminal.com/api/v2/networks/${network.id}/trending_pools?page=1`);
           const data  = await res.json();
           const pools = data?.data || [];
-          pools.forEach(pool => {
-            const attrs    = pool.attributes || {};
-            const change24 = parseFloat(attrs.price_change_percentage?.h24 || 0);
-            const price    = parseFloat(attrs.base_token_price_usd || 0);
-            const vol      = parseFloat(attrs.volume_usd?.h24 || 0);
-            const mcap     = parseFloat(attrs.fdv_usd || 0);
-            const liq      = parseFloat(attrs.reserve_in_usd || 0);
+          for (const pool of pools) {
+            const attrs       = pool.attributes || {};
+            const change24    = parseFloat(attrs.price_change_percentage?.h24 || 0);
+            const price       = parseFloat(attrs.base_token_price_usd || 0);
+            const vol         = parseFloat(attrs.volume_usd?.h24 || 0);
+            let mcap          = Number(attrs.fdv_usd || 0);
+            const liq         = parseFloat(attrs.reserve_in_usd || 0);
+            const baseTokenId = pool.relationships?.base_token?.data?.id;
+            const tokenAddress = baseTokenId ? baseTokenId.split("_").slice(1).join("_") : null;
+
+            // If GeckoTerminal's FDV/mcap is missing, try DEXscreener then CoinGecko (EVM chains)
+            if ((!Number.isFinite(mcap) || mcap === 0) && tokenAddress) {
+              try {
+                const dsRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
+                const dsData = await dsRes.json();
+                const pairs = dsData?.pairs || [];
+                if (pairs.length > 0) {
+                  // pick highest-liquidity pair
+                  const best = pairs.reduce((a, b) => (a.liquidity?.usd || 0) > (b.liquidity?.usd || 0) ? a : b, pairs[0]);
+                  // DEXscreener doesn't always provide market cap, but check if present
+                  const dsMcap = best?.baseToken?.marketCap || best?.baseToken?.market_cap || null;
+                  if (dsMcap) mcap = Number(dsMcap);
+                }
+              } catch (e) {
+                // ignore
+              }
+
+              // CoinGecko fallback for EVM chains
+              if ((!Number.isFinite(mcap) || mcap === 0) && tokenAddress && (network.id === "eth" || network.id === "bsc")) {
+                try {
+                  const platform = network.id === "eth" ? "ethereum" : "binance-smart-chain";
+                  const cgRes = await fetch(`https://api.coingecko.com/api/v3/coins/${platform}/contract/${tokenAddress}`);
+                  const cg = await cgRes.json();
+                  const cgMcap = cg?.market_data?.market_cap?.usd;
+                  if (cgMcap) mcap = Number(cgMcap);
+                } catch (e) {
+                  // ignore
+                }
+              }
+            }
+
             results.push({
               name:    attrs.name?.split("/")[0]?.trim() || "UNKNOWN",
               chain:   network.chain,
@@ -48,9 +82,9 @@ export default function Markets() {
               mcap:    formatNum(mcap),
               liq:     formatNum(liq),
               up:      change24 >= 0,
-              address: pool.id?.split("_")[1] || null,
+              address: tokenAddress,
             });
-          });
+          }
           // Rate limit delay
           await new Promise(r => setTimeout(r, 1500));
         } catch (err) {
@@ -68,11 +102,12 @@ export default function Markets() {
   }, []);
 
   const formatNum = (val) => {
-    if (!val || val === 0) return "$0";
-    if (val >= 1e9) return `$${(val / 1e9).toFixed(1)}B`;
-    if (val >= 1e6) return `$${(val / 1e6).toFixed(1)}M`;
-    if (val >= 1e3) return `$${(val / 1e3).toFixed(0)}K`;
-    return `$${val.toFixed(2)}`;
+    const n = Number(val);
+    if (!Number.isFinite(n) || n === 0) return "$0";
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+    if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+    return `$${n.toFixed(2)}`;
   };
 
   const filtered = tokens.filter(t =>

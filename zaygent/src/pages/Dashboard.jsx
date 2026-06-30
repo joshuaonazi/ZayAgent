@@ -69,36 +69,70 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
 }, []);
 
 useEffect(() => {
-  if (window._sniperCA) {
-    setSniperCA(window._sniperCA);
-    if (window._sniperChain) setSniperNetwork(window._sniperChain);
-    // Trigger token lookup
-    const ca = window._sniperCA;
-    window._sniperCA    = null;
-    window._sniperChain = null;
-    // Auto lookup
-    if (ca.length >= 32) {
-      setTokenLookupLoading(true);
-      fetch(`https://api.dexscreener.com/latest/dex/tokens/${ca}`)
-        .then(r => r.json())
-        .then(data => {
-          const pair = data?.pairs?.[0];
-          if (pair) {
-            setTokenInfo({
-              name:      pair.baseToken?.name   || "Unknown",
-              symbol:    pair.baseToken?.symbol || "???",
-              price:     parseFloat(pair.priceUsd || 0),
-              chain:     pair.chainId?.toUpperCase() === "ETHEREUM" ? "ETH" : pair.chainId?.toUpperCase(),
-              liquidity: pair.liquidity?.usd  || 0,
-              change24h: pair.priceChange?.h24 || 0,
-              dex:       pair.dexId || "unknown",
-            });
-          }
-        })
-        .catch(() => {})
-        .finally(() => setTokenLookupLoading(false));
+  const handleNavigate = () => {
+    if (window._sniperCA) {
+      const ca    = window._sniperCA;
+      const chain = window._sniperChain;
+      const name  = window._sniperName;
+      const price = window._sniperPrice;
+
+      setSniperCA(ca);
+      if (chain) setSniperNetwork(chain);
+      window._sniperCA    = null;
+      window._sniperChain = null;
+
+      // If we have token info from Markets — use it directly
+      if (name) {
+        setTokenInfo({
+          name,
+          symbol:    name,
+          price:     parseFloat(price || 0),
+          chain:     chain || "SOLANA",
+          liquidity: 0,
+          change24h: 0,
+          dex:       "geckoterminal",
+        });
+        setTokenLookupError(null);
+        window._sniperName  = null;
+        window._sniperPrice = null;
+        return;
+      }
+
+      // Otherwise lookup on DEXscreener
+      if (ca && ca.length >= 32) {
+        setTokenLookupLoading(true);
+        setTokenInfo(null);
+        setTokenLookupError(null);
+        fetch(`https://api.dexscreener.com/latest/dex/tokens/${ca}`)
+          .then(r => r.json())
+          .then(data => {
+            const pair = data?.pairs?.[0];
+            if (pair) {
+              setTokenInfo({
+                name:      pair.baseToken?.name   || "Unknown",
+                symbol:    pair.baseToken?.symbol || "???",
+                price:     parseFloat(pair.priceUsd || 0),
+                chain:     pair.chainId?.toUpperCase() === "ETHEREUM" ? "ETH" : pair.chainId?.toUpperCase(),
+                liquidity: pair.liquidity?.usd  || 0,
+                change24h: pair.priceChange?.h24 || 0,
+                dex:       pair.dexId || "unknown",
+              });
+            } else {
+              setTokenLookupError("Token not found on DEXscreener");
+            }
+          })
+          .catch(() => setTokenLookupError("Lookup failed"))
+          .finally(() => setTokenLookupLoading(false));
+      }
     }
-  }
+  };
+
+  // Run on mount
+  handleNavigate();
+
+  // Also listen for navigate events from Markets
+  window.addEventListener("zaygent:navigate", handleNavigate);
+  return () => window.removeEventListener("zaygent:navigate", handleNavigate);
 }, []);
 
   useEffect(() => {
