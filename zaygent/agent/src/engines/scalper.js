@@ -170,6 +170,7 @@ if (result.action === ACTIONS.TAKE_PROFIT) {
     destinationChain: candidate.chain,
     receiveToken:     "USDC",
     userHash,
+    onEvent:          emit,
   });
 
   if (!crossPay.success) {

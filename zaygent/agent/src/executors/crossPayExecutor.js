@@ -42,7 +42,7 @@ setInterval(fetchZecPrice, 10 * 60 * 1000);
  * Execute a simulated CrossPay flow
  * ZEC (Shielded) → NEAR Intents Solver → Target Chain Asset
  */
-const executeCrossPay = async ({ zecAmount, destinationChain, receiveToken = "USDC", userHash }) => {
+const executeCrossPay = async ({ zecAmount, destinationChain, receiveToken = "USDC", userHash, onEvent }) => {
   console.log(`\n🔐 [CrossPay] Initiating shielded ZEC transfer`);
   console.log(`   Amount:      ${zecAmount} ZEC`);
   console.log(`   Destination: ${destinationChain}`);
@@ -57,6 +57,7 @@ const executeCrossPay = async ({ zecAmount, destinationChain, receiveToken = "US
     const shieldTx = `ZEC_SHIELD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     steps.push({ step: "ZEC_SHIELDED", txHash: shieldTx, status: "COMPLETE" });
     console.log(`✅ ZEC shielded — tx: ${shieldTx}`);
+    if (onEvent) onEvent({ type: "CROSSPAY_STEP", data: { step: "ZEC_SHIELDED", txHash: shieldTx, chain: destinationChain }, ts: new Date().toISOString() });
 
     // Step 2 — NEAR Intents Solver
     console.log("⏳ Step 2: NEAR Intents solving route...");
@@ -74,6 +75,8 @@ const executeCrossPay = async ({ zecAmount, destinationChain, receiveToken = "US
 
     const nearTx = `NEAR_INTENT_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     steps.push({ step: "NEAR_SOLVED", txHash: nearTx, status: "COMPLETE" });
+    if (onEvent) onEvent({ type: "CROSSPAY_STEP", data: { step: "NEAR_SOLVED", txHash: nearTx, chain: destinationChain }, ts: new Date().toISOString() });
+    console.log(`✅ NEAR Intents solved — tx: ${nearTx}`);
     console.log(`✅ NEAR Intents solved — tx: ${nearTx}`);
 
     // Step 3 — Deliver to target chain
@@ -82,6 +85,7 @@ const executeCrossPay = async ({ zecAmount, destinationChain, receiveToken = "US
     const deliverTx = `${destinationChain}_DELIVER_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     steps.push({ step: "DELIVERED", txHash: deliverTx, status: "COMPLETE" });
     console.log(`✅ Delivered to ${destinationChain} — tx: ${deliverTx}`);
+    if (onEvent) onEvent({ type: "CROSSPAY_STEP", data: { step: "DELIVERED", txHash: deliverTx, chain: destinationChain }, ts: new Date().toISOString() });
 
     const grossUSD    = zecAmount * ZEC_PRICE_USD;
     const crossPayFee = grossUSD * FEES.CROSSPLAY_PCT;

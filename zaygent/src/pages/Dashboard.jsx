@@ -6,6 +6,7 @@ import { COLORS, chains, STRATEGIES } from "../constants/colors";
 import Badge from "../components/Badge";
 import DonutChart from "../components/DonutChart";
 import ActivityRow from "../components/ActivityRow";
+import CrossPayStatus from "../components/CrossPayStatus";
 
 export default function Dashboard({ agentActive, activities: simActivities, freshIds: simFreshIds }) {
   const { cycleCount, openPositions, activeSnipes, tpHits, slExits, zecReturned, refunds, fearGreed, lastCycle, agentOnline, lastCycleText } = useAgentStats();
@@ -19,6 +20,7 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
   const { positions, snipes, agentOnline: posOnline } = useAgentPositions(10000);
   const allAgentPositions = [...positions, ...snipes];
   const [zecPrice, setZecPrice] = useState(68);
+  const [crossPayExecution, setCrossPayExecution] = useState(null);
 
   const [tokenInfo,          setTokenInfo]          = useState(null);
   const [tokenLookupLoading, setTokenLookupLoading] = useState(false);
@@ -35,6 +37,27 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
   const [ticketKey]                       = useState(`ST-TICKET-${Math.floor(Math.random()*900000+100000)}::SIG-${Math.floor(Math.random()*900000+100000)}`);
   const [isMobile,      setIsMobile]      = useState(window.innerWidth < 768);
   const feedRef = useRef(null);
+  const crossPayCloseTimer = useRef(null);
+
+  useEffect(() => {
+    if (!crossPayResult) return;
+
+    if (crossPayCloseTimer.current) {
+      window.clearTimeout(crossPayCloseTimer.current);
+    }
+
+    crossPayCloseTimer.current = window.setTimeout(() => {
+      setCrossPayExecution(null);
+      crossPayCloseTimer.current = null;
+    }, 5000);
+
+    return () => {
+      if (crossPayCloseTimer.current) {
+        window.clearTimeout(crossPayCloseTimer.current);
+        crossPayCloseTimer.current = null;
+      }
+    };
+  }, [crossPayResult]);
 
   useEffect(() => {
   // Try multiple sources for ZEC price
@@ -66,6 +89,44 @@ export default function Dashboard({ agentActive, activities: simActivities, fres
   fetchZecPrice();
   const interval = setInterval(fetchZecPrice, 5 * 60 * 1000);
   return () => clearInterval(interval);
+}, []);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const handleAgentCrossPay = (e) => {
+    try {
+      const event = JSON.parse(e.data);
+      if (event.type === "CROSSPAY_STEP" && event.data?.step === "ZEC_SHIELDED") {
+        setCrossPayExecution({
+          zecAmount:  event.data.zecAmount || "2.0000",
+          usdcAmount: event.data.usdcAmount || "135.32",
+          chain:      event.data.chain || "ETH",
+          startedAt:  event.ts,
+          fromAgent:  true,
+        });
+      }
+      if (event.type === "CROSSPAY_STEP" && event.data?.step === "DELIVERED") {
+        setCrossPayResult({
+          success:  true,
+          zecSent:  event.data.zecAmount || "2.0000",
+          usdcRecv: event.data.usdcAmount || "135.32",
+          chain:    event.data.chain || "ETH",
+          txHash:   event.data.txHash,
+        });
+      }
+    } catch (err) {
+      // Ignore malformed event payloads
+    }
+  };
+
+  const es = new EventSource("http://localhost:5001/events");
+  es.onmessage = handleAgentCrossPay;
+  es.onerror = () => {
+    // keep listening if possible
+  };
+
+  return () => es.close();
 }, []);
 
 useEffect(() => {
@@ -174,6 +235,20 @@ useEffect(() => {
 
   return (
     <>
+      {/* CrossPay Status Widget */}
+      {crossPayExecution && (
+        <CrossPayStatus
+          execution={crossPayExecution}
+          onClose={() => {
+            if (crossPayCloseTimer.current) {
+              window.clearTimeout(crossPayCloseTimer.current);
+              crossPayCloseTimer.current = null;
+            }
+            setCrossPayExecution(null);
+          }}
+        />
+      )}
+
       {/* Page Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div>
@@ -564,18 +639,35 @@ useEffect(() => {
 
             <button
               onClick={async () => {
-                setCrossPayLoading(true);
-                setCrossPayResult(null);
-                await new Promise(r => setTimeout(r, 4500)); // simulate CrossPay time
-                setCrossPayResult({
-                  success:   true,
-                  zecSent:   crossPayZec,
-                  usdcRecv:  (parseFloat(crossPayZec) * 68 * 0.995 - 0.001).toFixed(2),
-                  chain:     crossPayChain,
-                  txHash:    `ZEC_SHIELD_${Date.now()}`,
-                });
-                setCrossPayLoading(false);
-              }}
+              if (!parseFloat(crossPayZec)) return;
+              const usdcAmount = (parseFloat(crossPayZec) * zecPrice * 0.995 - 0.001).toFixed(2);
+
+               // Show live status widget
+              setCrossPayExecution({
+              zecAmount:   crossPayZec,
+        usdcAmount,
+        chain:       crossPayChain,
+        startedAt:   new Date().toISOString(),
+      });
+
+      // Simulate CrossPay execution time
+      await new Promise(r => setTimeout(r, 4800));
+
+      setCrossPayResult({
+        success:  true,
+        zecSent:  crossPayZec,
+        usdcRecv: usdcAmount,
+        chain:    crossPayChain,
+        txHash:   `ZEC_SHIELD_${Date.now()}`,
+                    });
+
+         // Update vault balance in window stats
+           if (window._agentStats) {
+              const zecUsed = parseFloat(crossPayZec);
+              window._agentStats.zecReturned = Math.max(0, (window._agentStats.zecReturned || 0) - zecUsed);
+              }
+              setCrossPayLoading(false);                                  
+               }}
               disabled={crossPayLoading || !parseFloat(crossPayZec)}
               style={{ background: crossPayLoading ? COLORS.border : COLORS.teal, color: crossPayLoading ? COLORS.textMuted : COLORS.bg, border: "none", borderRadius: 6, padding: "10px", fontSize: 11, fontFamily: "monospace", fontWeight: 700, letterSpacing: 1, cursor: crossPayLoading ? "default" : "pointer", transition: "all 0.2s" }}>
               {crossPayLoading ? "⏳ PROCESSING CROSSPAY..." : "Ⓩ EXECUTE CROSSPAY"}

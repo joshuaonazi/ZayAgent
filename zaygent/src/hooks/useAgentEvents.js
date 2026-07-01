@@ -8,7 +8,8 @@ if (!window._agentEvents) {
 
 const isActivityEvent = (type) => [
   "POSITION_OPENED", "POSITION_CLOSED", "SNIPE_EXECUTED",
-  "SNIPE_CLOSED", "POSITION_UPDATE",
+  "SNIPE_CLOSED", "POSITION_UPDATE", "PROFITS_RETURNED",
+  "BUY_FAILED_REFUNDED",
 ].includes(type);
 
 const convertToActivity = (event) => {
@@ -18,12 +19,14 @@ const convertToActivity = (event) => {
   const now  = new Date(ts || Date.now());
   const time = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
 
-  const op = type === "POSITION_OPENED" ? "Bought"
-           : type === "POSITION_CLOSED" ? (data.reason === "TP_HIT" ? "TP Hit" : "SL Exit")
-           : type === "SNIPE_EXECUTED"  ? "Sniped"
-           : type === "SNIPE_CLOSED"    ? (data.reason === "TP_HIT" ? "TP Hit" : "SL Exit")
-           : type === "POSITION_UPDATE" ? "Holding"
-           : type;
+  const op = type === "POSITION_OPENED"    ? "Bought"
+         : type === "POSITION_CLOSED"    ? (data.reason === "TP_HIT" ? "TP Hit" : "SL Exit")
+         : type === "SNIPE_EXECUTED"     ? "Sniped"
+         : type === "SNIPE_CLOSED"       ? (data.reason === "TP_HIT" ? "TP Hit" : "SL Exit")
+         : type === "POSITION_UPDATE"    ? "Holding"
+         : type === "PROFITS_RETURNED"   ? "Returned"
+         : type === "BUY_FAILED_REFUNDED" ? "Refunded"
+         : type;
 
   return {
     id:           `${type}_${Date.now()}_${Math.random()}`,
