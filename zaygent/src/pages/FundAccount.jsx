@@ -8,6 +8,9 @@ export default function FundAccount() {
   const [autoShield,   setAutoShield]   = useState(true);
   const [isMobile,     setIsMobile]     = useState(window.innerWidth < 768);
   const [depositAmt,   setDepositAmt]   = useState("");
+  const [liveDeposits, setLiveDeposits] = useState([]);
+  const [waitingDeposit, setWaitingDeposit] = useState(false);
+  const [depositAddress, setDepositAddress] = useState(null);
 
   // Simulated deposit addresses — in production generated from Zcash SDK
   const addresses = {
@@ -40,6 +43,31 @@ export default function FundAccount() {
   const totalDeposited = depositHistory.reduce((s, d) => s + parseFloat(d.usd), 0);
   const vaultBalance   = (18.220 + (window._agentStats?.zecReturned || 0)).toFixed(3);
   const vaultUSD       = (parseFloat(vaultBalance) * zecPrice).toFixed(2);
+
+
+  useEffect(() => {
+    const handleCrossPay = (e) => {
+      const event = e.detail;
+      if (event.data?.step === "DELIVERED") {
+        const now     = new Date();
+        const dateStr = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+        const timeStr = now.toTimeString().slice(0, 8);
+        setLiveDeposits(prev => [{
+          id:      `live_${Date.now()}`,
+          chain:   event.data.chain || "ETH",
+          amount:  `${event.data.zecAmount || "2.000"} ZEC`,
+          usd:     event.data.usdcAmount || "135.32",
+          status:  "SHIELDED",
+          ts:      `${dateStr} ${timeStr}`,
+          txHash:  event.data.txHash || `ZEC_SHIELD_${Date.now()}`,
+          live:    true,
+        }, ...prev].slice(0, 20));
+      }
+    };
+
+    window.addEventListener("agent:crossplay", handleCrossPay);
+    return () => window.removeEventListener("agent:crossplay", handleCrossPay);
+  }, []);
 
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth < 768);
@@ -138,6 +166,22 @@ export default function FundAccount() {
                   </div>
                 </div>
               </div>
+              {/* Network fee info */}
+              <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                {[
+                  activeTab === "ZEC"    && { label: "Network Fee",  value: "~0.0001 ZEC",  color: COLORS.amber  },
+                  activeTab === "ETH"    && { label: "Gas Fee",      value: "~$2-5 USDC",   color: COLORS.blue   },
+                  activeTab === "BSC"    && { label: "Gas Fee",       value: "~$0.10 USDC", color: COLORS.bsc    },
+                  activeTab === "SOLANA" && { label: "Network Fee",  value: "~$0.001 USDC", color: COLORS.solana },
+                  { label: "CrossPay Fee", value: "0.5%",            color: COLORS.teal   },
+                  { label: "Min Deposit",  value: activeTab === "ZEC" ? "0.1 ZEC" : "$5",  color: COLORS.textSecondary },
+                ].filter(Boolean).map(item => (
+                  <div key={item.label} style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 4, padding: "4px 8px" }}>
+                    <span style={{ fontSize: 8, color: COLORS.textMuted }}>{item.label}: </span>
+                    <span style={{ fontSize: 8, color: item.color, fontWeight: 700 }}>{item.value}</span>
+                  </div>
+                ))}
+              </div>
 
               {/* Address Display */}
               <div style={{ background: COLORS.bg, border: `1px solid ${chainColors[activeTab]}44`, borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
@@ -147,11 +191,73 @@ export default function FundAccount() {
                 </div>
               </div>
 
+              {/* QR Code */}
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+                <div style={{ background: "white", padding: 10, borderRadius: 8, display: "inline-block" }}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(addresses[activeTab])}`}
+                    alt={`${activeTab} QR Code`}
+                    width={150}
+                    height={150}
+                    style={{ display: "block" }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 9, color: COLORS.textMuted, textAlign: "center", marginBottom: 12 }}>
+                Scan with your wallet or CEX app to deposit {activeTab}
+              </div>
+
               <button
                 onClick={() => handleCopy(activeTab, addresses[activeTab])}
                 style={{ width: "100%", background: copied === activeTab ? COLORS.green : chainColors[activeTab] + "22", color: copied === activeTab ? COLORS.bg : chainColors[activeTab], border: `1px solid ${chainColors[activeTab]}44`, borderRadius: 6, padding: "10px", fontSize: 11, fontFamily: "monospace", fontWeight: 700, cursor: "pointer", transition: "all 0.2s", marginBottom: 12 }}>
                 {copied === activeTab ? "✓ COPIED!" : `⧉ COPY ${activeTab} ADDRESS`}
               </button>
+              <button
+                onClick={() => {
+                  setWaitingDeposit(true);
+                  setDepositAddress(addresses[activeTab]);
+                }}
+                style={{ width: "100%", background: COLORS.bg, color: COLORS.textSecondary, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "10px", fontSize: 11, fontFamily: "monospace", fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>
+                📤 I HAVE SENT FUNDS — WAITING FOR CONFIRMATION
+              </button>
+
+              {waitingDeposit && (
+                <div style={{ background: COLORS.amber + "11", border: `1px solid ${COLORS.amber}44`, borderRadius: 8, padding: "14px", marginBottom: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.amber, animation: "pulse 1.5s infinite", flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: COLORS.amber, fontWeight: 700 }}>WAITING FOR DEPOSIT</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: COLORS.textSecondary, lineHeight: 1.8, marginBottom: 10 }}>
+                    Once your {activeTab} deposit is confirmed on-chain, CrossPay will automatically:
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {[
+                      { icon: "1️⃣", text: `Detect incoming ${activeTab} to your deposit address` },
+                      { icon: "2️⃣", text: "Route through NEAR Intents solver" },
+                      { icon: "3️⃣", text: "Shield as ZEC in your private vault" },
+                      { icon: "4️⃣", text: "Credit available balance to your agent" },
+                    ].map(item => (
+                      <div key={item.icon} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <span style={{ fontSize: 12 }}>{item.icon}</span>
+                        <span style={{ fontSize: 10, color: COLORS.textSecondary }}>{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1, background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "8px 10px" }}>
+                      <div style={{ fontSize: 8, color: COLORS.textMuted, marginBottom: 2 }}>MONITORING ADDRESS</div>
+                      <div style={{ fontSize: 9, color: COLORS.teal, fontFamily: "monospace", wordBreak: "break-all" }}>
+                        {addresses[activeTab].slice(0, 20)}...
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setWaitingDeposit(false)}
+                      style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "8px 12px", color: COLORS.textMuted, fontSize: 10, cursor: "pointer", fontFamily: "monospace" }}>
+                      CANCEL
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Deposit amount calculator */}
               <div style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "12px 14px" }}>
@@ -163,6 +269,19 @@ export default function FundAccount() {
                   placeholder={`Enter ${activeTab} amount...`}
                   style={{ width: "100%", background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "8px 10px", color: COLORS.textPrimary, fontSize: 12, fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 8 }}
                 />
+                
+                {/* Minimum deposit warning */}
+                  {depositAmt && parseFloat(depositAmt) > 0 && parseFloat(depositAmt) < (activeTab === "ZEC" ? 0.1 : 5) && (
+                    <div style={{ background: COLORS.red + "11", border: `1px solid ${COLORS.red}44`, borderRadius: 6, padding: "8px 10px", marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, color: COLORS.red, fontWeight: 600 }}>
+                        ⚠️ Below minimum deposit
+                      </div>
+                      <div style={{ fontSize: 9, color: COLORS.textMuted, marginTop: 2 }}>
+                        Minimum: {activeTab === "ZEC" ? "0.1 ZEC" : activeTab === "SOLANA" ? "5 USDC" : "5 USDC"} to cover network fees
+                      </div>
+                    </div>
+                  )}
+
                 {depositAmt && parseFloat(depositAmt) > 0 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -187,6 +306,7 @@ export default function FundAccount() {
               </div>
             </div>
           </div>
+          
 
           {/* Auto Shield Settings */}
           <div style={cardStyle}>
@@ -219,37 +339,55 @@ export default function FundAccount() {
               <span style={{ fontSize: 9, color: COLORS.textMuted }}>{depositHistory.length} transactions</span>
             </div>
             <div>
-              {depositHistory.map((d, i) => (
-                <div key={d.id} style={{ padding: "14px 16px", borderBottom: i < depositHistory.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: chainColors[d.chain] + "22", border: `1px solid ${chainColors[d.chain]}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: chainColors[d.chain], flexShrink: 0 }}>
-                        {chainIcons[d.chain]}
+              {/* Deposit History */}
+              <div style={cardStyle}>
+                <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary, letterSpacing: 2 }}>DEPOSIT HISTORY</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {liveDeposits.length > 0 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: COLORS.teal, animation: "pulse 1.5s infinite" }} />
+                        <span style={{ fontSize: 9, color: COLORS.teal }}>{liveDeposits.length} live</span>
                       </div>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.textPrimary }}>{d.amount}</div>
-                        <div style={{ fontSize: 9, color: COLORS.textMuted }}>{d.ts}</div>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.amber }}>${d.usd}</div>
-                      <div style={{ fontSize: 9, color: statusColor(d.status), fontWeight: 700 }}>{d.status}</div>
-                    </div>
+                    )}
+                    <span style={{ fontSize: 9, color: COLORS.textMuted }}>{liveDeposits.length + depositHistory.length} transactions</span>
                   </div>
-                  <div style={{ fontSize: 9, color: COLORS.textMuted, fontFamily: "monospace", background: COLORS.bg, padding: "4px 8px", borderRadius: 4, wordBreak: "break-all" }}>
-                    tx: {d.txHash}
-                  </div>
-                  {d.status !== "ZEC" && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
-                      <span style={{ fontSize: 8, color: chainColors[d.chain] }}>{chainIcons[d.chain]}</span>
-                      <div style={{ flex: 1, height: 1, background: COLORS.teal + "44" }} />
-                      <span style={{ fontSize: 8, color: COLORS.near }}>Ⓝ</span>
-                      <div style={{ flex: 1, height: 1, background: COLORS.teal + "44" }} />
-                      <span style={{ fontSize: 8, color: COLORS.amber }}>Ⓩ SHIELDED</span>
-                    </div>
-                  )}
                 </div>
-              ))}
+                <div>
+                  {[...liveDeposits, ...depositHistory].map((d, i) => (
+                    <div key={d.id} style={{ padding: "14px 16px", borderBottom: `1px solid ${COLORS.border}`, background: d.live ? COLORS.tealFaint : "transparent" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: "50%", background: chainColors[d.chain] + "22", border: `1px solid ${chainColors[d.chain]}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: chainColors[d.chain], flexShrink: 0 }}>
+                            {chainIcons[d.chain]}
+                          </div>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.textPrimary }}>{d.amount}</span>
+                              {d.live && <span style={{ fontSize: 8, color: COLORS.teal, background: COLORS.tealFaint, padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>LIVE</span>}
+                            </div>
+                            <div style={{ fontSize: 9, color: COLORS.textMuted }}>{d.ts}</div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.amber }}>${d.usd}</div>
+                          <div style={{ fontSize: 9, color: statusColor(d.status), fontWeight: 700 }}>{d.status}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 9, color: COLORS.textMuted, fontFamily: "monospace", background: COLORS.bg, padding: "4px 8px", borderRadius: 4, wordBreak: "break-all" }}>
+                        tx: {d.txHash}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
+                        <span style={{ fontSize: 8, color: chainColors[d.chain] }}>{chainIcons[d.chain]}</span>
+                        <div style={{ flex: 1, height: 1, background: COLORS.teal + "44" }} />
+                        <span style={{ fontSize: 8, color: COLORS.near }}>Ⓝ</span>
+                        <div style={{ flex: 1, height: 1, background: COLORS.teal + "44" }} />
+                        <span style={{ fontSize: 8, color: COLORS.amber }}>Ⓩ SHIELDED</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
