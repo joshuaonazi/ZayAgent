@@ -133,6 +133,20 @@ const handleRequest = async (req, res) => {
         return;
       }
 
+      // ── GET /markets ─────────────────────────────────────────────────────────────
+      if (req.method === "GET" && url === "/markets") {
+  try {
+    const { getLastScan } = require("./scanners/dexScanner");
+    const data = getLastScan();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true, ...data }));
+  } catch (err) {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, message: err.message }));
+  }
+  return;
+}
+
   // ── 404 ──────────────────────────────────────────────────────────────────
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ success: false, message: "Not found" }));

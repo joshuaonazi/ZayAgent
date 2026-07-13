@@ -150,6 +150,8 @@ const scoreToken = (token) => {
 
 // ── Main Scan ─────────────────────────────────────────────────────────────────
 
+let lastScanResults = [];
+let lastScanTime     = null;
 const runScan = async (minScore = 35) => {
   console.log("🔍 Running multi-source DEX scan...");
   let allTokens = [];
@@ -199,11 +201,16 @@ const runScan = async (minScore = 35) => {
     .sort((a, b) => b.score - a.score);
 
   console.log(`✅ Scan complete — ${scored.length} high-conviction tokens from ${allTokens.length} total`);
+  lastScanResults = scored;
+  lastScanTime    = new Date().toISOString();
   return scored;
 };
 
+const getLastScan = () => ({ tokens: lastScanResults, lastUpdated: lastScanTime });
+
 module.exports = {
   runScan,
+  getLastScan,
   fetchGeckoTrending,
   fetchGeckoNewPools,
   fetchDexscreenerTrending,
