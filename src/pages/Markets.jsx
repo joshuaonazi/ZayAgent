@@ -16,6 +16,7 @@ export default function Markets() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // Fetch live tokens from the agent
   useEffect(() => {
     const fetchTokens = async () => {
       setLoading(true);
